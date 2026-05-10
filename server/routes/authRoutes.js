@@ -4,6 +4,7 @@ const { protect } = require('../middleware/authMiddleware');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 const jwt  = require('jsonwebtoken');
 const User = require('../models/User');
+const sendEmail = require('../utils/emailHelper');
 const { OAuth2Client } = require('google-auth-library');
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -144,6 +145,72 @@ router.post('/google', async (req, res) => {
   } catch (error) {
     console.error('Google login error:', error);
     return sendError(res, 401, 'Invalid Google token or verification failed.');
+  }
+});
+
+// ── POST /api/auth/forgot-password ──────────────────────────────────────────
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return sendError(res, 400, 'Email is required.');
+
+    const user = await User.findOne({ email });
+    if (!user) return sendError(res, 404, 'User not found with this email.');
+
+    // Generate 6-digit code
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Save plain text code and expiry (10 mins)
+    user.passwordResetToken = resetCode;
+    user.passwordResetExpires = Date.now() + 10 * 60 * 1000;
+    await user.save({ validateBeforeSave: false });
+
+    // Send email
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: 'NutriTrack - Password Reset Code',
+        message: `Your password reset code is: ${resetCode}. It will expire in 10 minutes.`,
+        html: `<h3>Password Reset Code</h3><p>Your password reset code is: <strong>${resetCode}</strong></p><p>It will expire in 10 minutes.</p>`,
+      });
+      return sendSuccess(res, 200, 'Reset code sent to email.');
+    } catch (err) {
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+      console.error('Email send error:', err);
+      return sendError(res, 500, 'Failed to send email. Try again later.');
+    }
+  } catch (err) {
+    return sendError(res, 500, err.message);
+  }
+});
+
+// ── POST /api/auth/reset-password ───────────────────────────────────────────
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return sendError(res, 400, 'Email, code and new password are required.');
+    }
+
+    const user = await User.findOne({
+      email,
+      passwordResetToken: code,
+      passwordResetExpires: { $gt: Date.now() }
+    });
+
+    if (!user) return sendError(res, 400, 'Invalid code or code expired.');
+
+    // Update password
+    user.password = newPassword;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    return sendSuccess(res, 200, 'Password reset successful.');
+  } catch (err) {
+    return sendError(res, 500, err.message);
   }
 });
 

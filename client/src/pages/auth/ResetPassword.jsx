@@ -1,0 +1,118 @@
+import { useState } from 'react';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { Key, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
+import api from '../../api/axiosInstance';
+import toast from 'react-hot-toast';
+
+const ResetPassword = () => {
+  const [searchParams] = useSearchParams();
+  const [form, setForm] = useState({
+    email: searchParams.get('email') || '',
+    code: '',
+    newPassword: ''
+  });
+  const [showPwd, setShowPwd] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await api.post('/auth/reset-password', form);
+      toast.success('Password reset successfully! You can now login.');
+      navigate('/login');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reset password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4">
+      {/* Background glow blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-accent-500/10 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-md animate-slide-up">
+        {/* Back to Login */}
+        <Link to="/login" className="absolute -top-10 left-0 flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Back to Login
+        </Link>
+
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-white">Reset Password</h1>
+          <p className="text-slate-400 mt-1 text-sm">Enter the code sent to your email and your new password</p>
+        </div>
+
+        {/* Card */}
+        <div className="card">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="label" htmlFor="email">Email address</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                value={form.email}
+                onChange={handleChange}
+                className="input"
+              />
+            </div>
+
+            <div>
+              <label className="label" htmlFor="code">Reset Code</label>
+              <input
+                id="code"
+                name="code"
+                type="text"
+                required
+                placeholder="6-digit code"
+                value={form.code}
+                onChange={handleChange}
+                className="input"
+                maxLength={6}
+              />
+            </div>
+
+            <div>
+              <label className="label" htmlFor="newPassword">New Password</label>
+              <div className="relative">
+                <input
+                  id="newPassword"
+                  name="newPassword"
+                  type={showPwd ? 'text' : 'password'}
+                  required
+                  placeholder="••••••••"
+                  value={form.newPassword}
+                  onChange={handleChange}
+                  className="input pr-11"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(!showPwd)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
+              {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Resetting...</> : 'Reset Password'}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ResetPassword;
