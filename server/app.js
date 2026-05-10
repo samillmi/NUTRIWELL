@@ -22,6 +22,7 @@ const consultationRoutes = require('./routes/consultationRoutes');
 const chatRoutes    = require('./routes/chatRoutes');
 const aiRoutes      = require('./routes/aiRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const bookingRoutes = require('./routes/bookingRoutes');
 
 const { sendError } = require('./utils/responseHelper');
 
@@ -31,7 +32,7 @@ const app = express();
 app.use(helmet());
 app.use(mongoSanitize());               // Prevent NoSQL injection
 app.use(cors({
-  origin:      process.env.CLIENT_URL || 'http://localhost:5173',
+  origin:      [process.env.CLIENT_URL || 'http://localhost:5173', 'http://localhost:5173'],
   credentials: true,
 }));
 
@@ -85,6 +86,7 @@ app.use('/api/chat',     chatRoutes);
 app.use('/api/ai',       aiLimiter, aiRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/consultations', consultationRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 // ── 404 handler ────────────────────────────────────────────────────────────────
 app.use((req, res) => {

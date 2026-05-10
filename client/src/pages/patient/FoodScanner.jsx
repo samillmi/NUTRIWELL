@@ -1,4 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../../api/axiosInstance';
 import { Upload, ScanLine, Loader2, CheckCircle2, AlertCircle, X, Flame, Beef, Wheat, Droplet } from 'lucide-react';
 import DashboardLayout from '../../components/common/DashboardLayout';
 import { scanFood } from '../../api/aiApi';
@@ -23,6 +25,10 @@ const MacroBar = ({ label, value, max, color, icon: Icon }) => (
 );
 
 const FoodScanner = () => {
+  const [unlocked, setUnlocked] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const navigate = useNavigate();
+
   const [dragOver, setDragOver]   = useState(false);
   const [preview,  setPreview]    = useState(null);
   const [file,     setFile]       = useState(null);
@@ -30,6 +36,54 @@ const FoodScanner = () => {
   const [result,   setResult]     = useState(null);
   const [mealType, setMealType]   = useState('lunch');
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    const checkUnlock = async () => {
+      try {
+        const { data } = await api.get('/bookings/patient');
+        const hasBought = data.data.bookings.some(b => b.type === 'scanner' && b.status === 'confirmed');
+        setUnlocked(hasBought);
+      } catch (err) {
+        console.error('Failed to check unlock status:', err);
+      } finally {
+        setChecking(false);
+      }
+    };
+    checkUnlock();
+  }, []);
+
+  if (checking) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-brand-400" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!unlocked) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-md mx-auto mt-20 text-center">
+          <div className="card p-6 bg-white dark:bg-slate-800 rounded-lg shadow-md">
+            <ScanLine className="w-16 h-16 text-brand-400 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">Unlock AI Food Scanner</h1>
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              This premium feature allows you to scan your meals and get instant nutrition facts.
+            </p>
+            <div className="text-3xl font-bold text-brand-400 mb-6">$19.00</div>
+            <button
+              onClick={() => navigate(`/patient/checkout?type=scanner&price=19`)}
+              className="btn-primary w-full py-3"
+            >
+              Buy Now to Unlock
+            </button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   const handleFile = useCallback((f) => {
     if (!f || !f.type.startsWith('image/')) {

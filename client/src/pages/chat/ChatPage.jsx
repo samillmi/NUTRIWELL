@@ -9,6 +9,7 @@ import { useSocket } from '../../context/SocketContext';
 import { getChatHistory } from '../../api/chatApi';
 import { getMyPatients } from '../../api/doctorApi';
 import { getPatientProfile } from '../../api/patientApi';
+import api from '../../api/axiosInstance';
 import useAuthStore from '../../store/authStore';
 import toast from 'react-hot-toast';
 
@@ -84,21 +85,21 @@ const ContactItem = ({ contact, isSelected, isOnline, onClick }) => (
    Main Chat Page — works for both Doctor and Patient
 ──────────────────────────────────────────────────────────────────────────── */
 const ChatPage = () => {
-  const { user }                   = useAuthStore();
-  const { socket, onlineUsers }    = useSocket();
-  const [searchParams]             = useSearchParams();
+  const { user } = useAuthStore();
+  const { socket, onlineUsers } = useSocket();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const [contacts,    setContacts]   = useState([]);
-  const [activeId,    setActiveId]   = useState(searchParams.get('with') || null);
-  const [activeName,  setActiveName] = useState(searchParams.get('name') || '');
-  const [messages,    setMessages]   = useState([]);
-  const [input,       setInput]      = useState('');
-  const [loadingChat, setLoadingChat]= useState(false);
-  const [sending,     setSending]    = useState(false);
-  const [typing,      setTyping]     = useState(false);
-  const typingTimer  = useRef(null);
-  const bottomRef    = useRef(null);
+  const [contacts, setContacts] = useState([]);
+  const [activeId, setActiveId] = useState(searchParams.get('with') || null);
+  const [activeName, setActiveName] = useState(searchParams.get('name') || '');
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loadingChat, setLoadingChat] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const typingTimer = useRef(null);
+  const bottomRef = useRef(null);
 
   /* ── Load contacts (doctor → patients / patient → doctor) ─────── */
   useEffect(() => {
@@ -108,26 +109,48 @@ const ChatPage = () => {
           const { data } = await getMyPatients();
           setContacts(
             data.data.patients.map((p) => ({
-              id:       p._id,
-              name:     `${p.firstName} ${p.lastName}`,
+              id: p._id,
+              name: `${p.firstName} ${p.lastName}`,
               initials: `${p.firstName[0]}${p.lastName[0]}`,
-              avatar:   p.avatar || '',
-              role:     'patient',
+              avatar: p.avatar || '',
+              role: 'patient',
             }))
           );
         } else if (user?.role === 'patient') {
-          // Patient sees their assigned doctor
-          const { data } = await getPatientProfile();
-          const doc = data.data.user.assignedDoctor;
+          const { data: profileData } = await getPatientProfile();
+          const doc = profileData.data.user.assignedDoctor;
+
+          let patientContacts = [];
+
           if (doc) {
-            setContacts([{
-              id:       typeof doc === 'object' ? doc._id : doc,
-              name:     typeof doc === 'object' ? `Dr. ${doc.firstName} ${doc.lastName}` : 'Your Doctor',
+            patientContacts.push({
+              id: typeof doc === 'object' ? doc._id : doc,
+              name: typeof doc === 'object' ? `Dr. ${doc.firstName} ${doc.lastName}` : 'Your Doctor',
               initials: typeof doc === 'object' ? `${doc.firstName[0]}${doc.lastName[0]}` : 'DR',
-              avatar:   typeof doc === 'object' ? doc.avatar : '',
-              role:     'doctor',
-            }]);
+              avatar: typeof doc === 'object' ? doc.avatar : '',
+              role: 'doctor',
+            });
           }
+
+          try {
+            const { data: bookingData } = await api.get('/bookings/patient');
+            bookingData.data.bookings.forEach(booking => {
+              const docInfo = booking.doctor;
+              if (docInfo && !patientContacts.some(c => c.id === docInfo._id)) {
+                patientContacts.push({
+                  id: docInfo._id,
+                  name: `Dr. ${docInfo.firstName} ${docInfo.lastName}`,
+                  initials: `${docInfo.firstName[0]}${docInfo.lastName[0]}`,
+                  avatar: docInfo.avatar || '',
+                  role: 'doctor',
+                });
+              }
+            });
+          } catch (err) {
+            console.error('[Chat] Failed to load booked doctors:', err);
+          }
+
+          setContacts(patientContacts);
         }
       } catch (err) {
         console.error('[Chat] Failed to load contacts:', err);
@@ -185,27 +208,27 @@ const ChatPage = () => {
     };
 
     socket.on('receive:message', onReceive);
-    socket.on('typing:start',    onTypingStart);
-    socket.on('typing:stop',     onTypingStop);
+    socket.on('typing:start', onTypingStart);
+    socket.on('typing:stop', onTypingStop);
 
     return () => {
       socket.off('receive:message', onReceive);
-      socket.off('typing:start',    onTypingStart);
-      socket.off('typing:stop',     onTypingStop);
+      socket.off('typing:start', onTypingStart);
+      socket.off('typing:stop', onTypingStop);
     };
   }, [socket, activeId]);
 
   /* ── Helpers ─────────────────────────────────────────────────────── */
   const formatMsg = (m) => ({
-    id:           m._id,
-    content:      m.content,
-    isDeleted:    m.isDeleted,
-    senderId:     m.sender?._id || m.sender,
+    id: m._id,
+    content: m.content,
+    isDeleted: m.isDeleted,
+    senderId: m.sender?._id || m.sender,
     senderInitials: m.sender?.firstName
       ? `${m.sender.firstName[0]}${m.sender.lastName[0]}`
       : '??',
     senderAvatar: m.sender?.avatar || '',
-    readBy:       m.readBy || [],
+    readBy: m.readBy || [],
     time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
   });
 
@@ -224,13 +247,13 @@ const ChatPage = () => {
 
     const payload = { receiverId: activeId, content: input.trim(), messageType: 'text' };
     const optimistic = {
-      id:            `opt-${Date.now()}`,
-      content:       input.trim(),
-      senderId:      user._id,
-      senderInitials:`${user.firstName[0]}${user.lastName[0]}`,
-      isDeleted:     false,
-      readBy:        [],
-      time:          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      id: `opt-${Date.now()}`,
+      content: input.trim(),
+      senderId: user._id,
+      senderInitials: `${user.firstName[0]}${user.lastName[0]}`,
+      isDeleted: false,
+      readBy: [],
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
     setMessages((prev) => [...prev, optimistic]);
@@ -329,13 +352,23 @@ const ChatPage = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button className="btn-ghost p-2 rounded-xl" title="Voice call">
-                    <Phone className="w-4 h-4" />
-                  </button>
                   <button 
                     className="btn-ghost p-2 rounded-xl" 
-                    title="Start Google Meet"
-                    onClick={() => window.open('https://meet.google.com/new', '_blank')}
+                    title="Start Voice Call"
+                    onClick={() => {
+                      const rolePath = user?.role === 'doctor' ? 'doctor' : 'patient';
+                      navigate(`/${rolePath}/video?with=${activeId}&mode=voice`);
+                    }}
+                  >
+                    <Phone className="w-4 h-4" />
+                  </button>
+                  <button
+                    className="btn-ghost p-2 rounded-xl"
+                    title="Start Video Call"
+                    onClick={() => {
+                      const rolePath = user?.role === 'doctor' ? 'doctor' : 'patient';
+                      navigate(`/${rolePath}/video?with=${activeId}`);
+                    }}
                   >
                     <Video className="w-4 h-4" />
                   </button>
@@ -378,7 +411,7 @@ const ChatPage = () => {
                       <div className="flex gap-1">
                         {[0, 0.2, 0.4].map((d, i) => (
                           <div key={i} className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce"
-                               style={{ animationDelay: `${d}s` }} />
+                            style={{ animationDelay: `${d}s` }} />
                         ))}
                       </div>
                     </div>

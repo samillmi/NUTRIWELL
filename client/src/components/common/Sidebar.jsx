@@ -17,6 +17,7 @@ const navConfig = {
     { to: '/admin',          icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/admin/users',    icon: Users,            label: 'Users' },
     { to: '/admin/finance',  icon: Activity,         label: 'Financials' },
+    { to: '/admin/payments', icon: CreditCard,       label: 'Payments' },
     { to: '/admin/settings', icon: Settings,         label: 'Settings' },
   ],
   doctor: [
@@ -34,7 +35,6 @@ const navConfig = {
     { to: '/patient/doctors',  icon: Search,            label: 'Find Doctor' },
     { to: '/patient/ai',       icon: Sparkles,          label: 'AI Assistant' },
     { to: '/patient/chat',     icon: MessageSquare,     label: 'Chat' },
-    { to: '/patient/checkout', icon: CreditCard,        label: 'Upgrade / Billing' },
     { to: '/patient/settings', icon: Settings,          label: 'Settings' },
   ],
 };

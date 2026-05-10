@@ -10,6 +10,7 @@ const Login = () => {
   const [form, setForm]       = useState({ email: '', password: '' });
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const { setAuth }           = useAuthStore();
   const navigate              = useNavigate();
 
@@ -18,6 +19,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMsg('');
     try {
       const { data } = await login(form);
       setAuth(data.data.user, data.data.token);
@@ -25,7 +27,9 @@ const Login = () => {
       const roles = { admin: '/admin', doctor: '/doctor', patient: '/patient' };
       navigate(roles[data.data.user.role] || '/patient');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Login failed. Please try again.');
+      const msg = err.response?.data?.message || 'Invalid email or password.';
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -118,6 +122,12 @@ const Login = () => {
               </div>
             </div>
 
+            {errorMsg && (
+              <div className="text-red-400 text-sm font-medium text-center bg-red-400/10 py-2 rounded-lg border border-red-400/20">
+                ⚠️ {errorMsg}
+              </div>
+            )}
+
             <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
               {loading
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing in...</>
@@ -155,24 +165,6 @@ const Login = () => {
           </p>
         </div>
 
-        {/* Demo credential hints */}
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          {[
-            { role: 'Admin',   color: 'text-red-400',    email: 'admin@demo.com'   },
-            { role: 'Doctor',  color: 'text-brand-400',  email: 'doctor@demo.com'  },
-            { role: 'Patient', color: 'text-accent-400', email: 'patient@demo.com' },
-          ].map(({ role, color, email }) => (
-            <button
-              key={role}
-              type="button"
-              onClick={() => setForm({ email, password: 'Demo1234!' })}
-              className="glass py-2 px-3 text-center hover:border-white/20 transition-all"
-            >
-              <p className={`text-xs font-semibold ${color}`}>{role}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5 truncate">{email}</p>
-            </button>
-          ))}
-        </div>
       </div>
     </div>
     </GoogleOAuthProvider>

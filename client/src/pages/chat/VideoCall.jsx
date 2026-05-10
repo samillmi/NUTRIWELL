@@ -42,6 +42,13 @@ const VideoCall = () => {
     }
   }, [remoteStream]);
 
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    if (mode === 'voice' && !isVideoOff) {
+      toggleVideo();
+    }
+  }, [searchParams, isVideoOff, toggleVideo]);
+
   // Handle navigating away
   const handleBack = () => {
     if (callStatus !== 'idle') {
@@ -111,7 +118,7 @@ const VideoCall = () => {
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-surface-card/80 backdrop-blur-xl p-3 rounded-2xl border border-white/10 shadow-card z-20">
           
           {callStatus === 'idle' && !incomingCall && (
-            <button onClick={() => initiateCall(partnerId)} className="btn-primary rounded-xl px-6">
+            <button onClick={() => initiateCall(partnerId, searchParams.get('mode') || 'video')} className="btn-primary rounded-xl px-6">
               <Phone className="w-5 h-5 mr-2 text-white" /> Start Call
             </button>
           )}

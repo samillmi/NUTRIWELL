@@ -1,300 +1,237 @@
-import { useState, useEffect } from 'react';
-import { CreditCard, CheckCircle2, ShieldCheck, Zap, Activity, Star } from 'lucide-react';
-import DashboardLayout from '../../components/common/DashboardLayout';
-import toast from 'react-hot-toast';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { processPayment } from '../../api/paymentApi';
+import DashboardLayout from '../../components/common/DashboardLayout';
 import api from '../../api/axiosInstance';
+import toast from 'react-hot-toast';
 
 const PatientCheckout = () => {
-  const [loading, setLoading] = useState(false);
-  const [cardNumber, setCardNumber] = useState('');
-  const [consultationDate, setConsultationDate] = useState('');
-  const [selectedDay, setSelectedDay] = useState('');
-  const [bookedSlots, setBookedSlots] = useState([]);
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
-  const type = searchParams.get('type') || 'subscription';
-  const planId = searchParams.get('planId');
+  const navigate = useNavigate();
   const doctorId = searchParams.get('doctorId');
-  const initialPrice = searchParams.get('price');
+  const type = searchParams.get('type');
   
-  const [selectedPlan, setSelectedPlan] = useState(type === 'subscription' ? 'premium' : 'custom');
+  const [form, setForm] = useState({
+    date: '',
+    time: '',
+    reason: '',
+    cardNumber: '',
+    expiry: '',
+    cvv: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [bookedTimes, setBookedTimes] = useState([]);
+  
+  const allSlots = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'];
 
   useEffect(() => {
-    const fetchSlots = async () => {
+    const fetchBookedSlots = async () => {
+      if (!form.date || !doctorId) return;
       try {
-        const { data } = await api.get(`/consultations/doctor/${doctorId}`);
-        setBookedSlots(data?.data?.bookedSlots || []);
+        const { data } = await api.get(`/bookings/available-slots?doctor=${doctorId}&date=${form.date}`);
+        setBookedTimes(data.data.bookedTimes);
       } catch (err) {
-        console.error('Failed to load slots');
-        setBookedSlots([]);
+        toast.error('Failed to fetch available slots.');
       }
     };
-    if (doctorId && doctorId !== 'undefined' && type === 'consultation_booking') fetchSlots();
-  }, [doctorId, type]);
+    fetchBookedSlots();
+  }, [form.date, doctorId]);
 
-  const handleCheckout = async (e) => {
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (cardNumber.length !== 8) {
-      return toast.error('Card number must be exactly 8 digits.');
+    
+    // Card Validation
+    if (!form.cardNumber || form.cardNumber.length !== 8 || !/^\d+$/.test(form.cardNumber)) {
+      toast.error('Card number must be exactly 8 digits.');
+      return;
     }
-    if (type === 'consultation_booking' && !consultationDate) {
-      return toast.error('Please select a consultation time slot.');
+    if (!form.expiry || !/^(0[1-9]|1[0-2])\/\d{2}$/.test(form.expiry)) {
+      toast.error('Expiry date must be in MM/YY format.');
+      return;
+    }
+    if (!form.cvv || form.cvv.length !== 3 || !/^\d+$/.test(form.cvv)) {
+      toast.error('CVV must be exactly 3 digits.');
+      return;
+    }
+
+    if (type === 'scanner' || type === 'chatbot' || type === 'plan_purchase') {
+      setLoading(true);
+      try {
+        await api.post('/bookings', {
+          type: type,
+          reason: type === 'plan_purchase' ? `Purchase of Diet Plan ID: ${searchParams.get('planId')}` : `Purchase of ${type}`
+        });
+        toast.success('Payment submitted! Waiting for Admin approval.');
+        navigate('/patient');
+      } catch (err) {
+        toast.error('Failed to submit payment.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (!doctorId) {
+      toast.error('Doctor ID is missing.');
+      return;
     }
     setLoading(true);
-    
     try {
-      const amount = type === 'subscription' 
-        ? (selectedPlan === 'premium' ? 49 : 29)
-        : Number(initialPrice || 0);
-
-      const description = type === 'subscription' 
-        ? `${selectedPlan} subscription` 
-        : (type === 'plan_purchase' ? 'Diet Plan Purchase' : 'Consultation Booking');
-
-      await processPayment({
-        amount,
-        type,
-        description,
-        planId,
-        doctorId,
-        consultationDate: type === 'consultation_booking' ? consultationDate : undefined
+      await api.post('/bookings', {
+        doctor: doctorId,
+        date: form.date,
+        time: form.time,
+        reason: form.reason
       });
-
-      toast.success('Payment successful!');
+      toast.success('Consultation booked successfully!');
       navigate('/patient');
     } catch (err) {
-      const msg = err.response?.data?.message || 'Payment failed. Please try again.';
-      toast.error(msg);
+      toast.error(err.response?.data?.message || 'Failed to book consultation.');
     } finally {
       setLoading(false);
     }
   };
 
-  const displayPrice = type === 'subscription' 
-    ? (selectedPlan === 'premium' ? '49.00' : '29.00') 
-    : (initialPrice || '0.00');
-
   return (
     <DashboardLayout>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <CreditCard className="w-7 h-7 text-brand-600 dark:text-brand-400" /> Checkout
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Complete your secure payment</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Column: Details */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Order Summary</h2>
-          
-          {type === 'subscription' ? (
-            <>
-              <div 
-                onClick={() => setSelectedPlan('premium')}
-            className={`card cursor-pointer border-2 transition-all ${
-              selectedPlan === 'premium' ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10 shadow-glow-teal' : 'hover:border-brand-500/50'
-            }`}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <span className="badge-teal mb-2">MOST POPULAR</span>
-                <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Premium Health</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Full access to doctors & custom diets</p>
-              </div>
-              <div className="text-right">
-                <span className="text-2xl font-black text-slate-900 dark:text-white">$49</span>
-                <span className="text-slate-500 dark:text-slate-400 text-sm">/mo</span>
-              </div>
-            </div>
-            <ul className="space-y-2 mt-4">
-              <li className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <CheckCircle2 className="w-4 h-4 text-brand-500" /> Unlimited Video Consultations
-              </li>
-              <li className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <CheckCircle2 className="w-4 h-4 text-brand-500" /> Custom Weekly Diet Plans
-              </li>
-              <li className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <CheckCircle2 className="w-4 h-4 text-brand-500" /> Advanced AI Food Scanning
-              </li>
-            </ul>
+      <div className="p-6 max-w-2xl mx-auto">
+        <h1 className="text-2xl font-bold mb-6 text-slate-900 dark:text-white">
+          {type === 'scanner' ? 'Unlock AI Food Scanner' : type === 'chatbot' ? 'Unlock AI Chatbot' : type === 'plan_purchase' ? 'Buy Diet Plan' : 'Book Your Consultation'}
+        </h1>
+        
+        <div className="card bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md">
+          <div className="mb-4 p-3 bg-brand-500/10 rounded-lg flex justify-between items-center">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              {(type === 'scanner' || type === 'chatbot') ? 'Unlock Fee' : 'Fee'}
+            </span>
+            <span className="text-lg font-bold text-brand-400">${searchParams.get('price') || 29}</span>
           </div>
-
-          <div 
-            onClick={() => setSelectedPlan('single')}
-            className={`card cursor-pointer border-2 transition-all ${
-              selectedPlan === 'single' ? 'border-accent-500 bg-accent-50 dark:bg-accent-500/10 shadow-glow-purple' : 'hover:border-accent-500/50'
-            }`}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Single Session</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">One-time consultation with a doctor</p>
-              </div>
-              <div className="text-right">
-                <span className="text-2xl font-black text-slate-900 dark:text-white">$29</span>
-                <span className="text-slate-500 dark:text-slate-400 text-sm">/session</span>
-              </div>
-            </div>
-            <ul className="space-y-2 mt-4">
-              <li className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <CheckCircle2 className="w-4 h-4 text-accent-500" /> 1x Video Consultation (30 mins)
-              </li>
-              <li className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <CheckCircle2 className="w-4 h-4 text-accent-500" /> Basic AI features
-              </li>
-            </ul>
-          </div>
-            </>
-          ) : (
-            <div className="card border-2 border-brand-500 bg-brand-50 dark:bg-brand-500/10 shadow-glow-teal">
-              <div className="flex justify-between items-start mb-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {type !== 'scanner' && type !== 'chatbot' && type !== 'plan_purchase' && (
+              <>
                 <div>
-                  <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
-                    {type === 'plan_purchase' ? 'Diet Plan Template' : 'Doctor Consultation'}
-                  </h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">One-time purchase</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-2xl font-black text-slate-900 dark:text-white">${initialPrice}</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Column: Checkout Form */}
-        <div>
-          <div className="card sticky top-24">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-500" /> Secure Checkout
-            </h2>
-            
-            <form onSubmit={handleCheckout} className="space-y-4">
-              <div>
-                <label className="label">Cardholder Name</label>
-                <input type="text" required placeholder="John Doe" className="input" />
-              </div>
-              
-              {type === 'consultation_booking' && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="label">Select Date</label>
-                    <input 
-                      type="date" 
-                      required 
-                      className="input" 
-                      onChange={(e) => {
-                        setSelectedDay(e.target.value);
-                        setConsultationDate(''); // Reset time when day changes
-                      }}
-                    />
-                  </div>
-                  
-                  {selectedDay && (
-                    <div>
-                      <label className="label">Available Slots</label>
-                      <div className="grid grid-cols-4 gap-2">
-                        {['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30']
-                          .filter(time => {
-                            const localDateTime = `${selectedDay}T${time}:00`;
-                            const slotDateObj = new Date(localDateTime);
-                            const slotISO = !isNaN(slotDateObj.getTime()) ? slotDateObj.toISOString() : '';
-                            
-                            const isBooked = bookedSlots.some(slot => {
-                              if (!slot.date) return false;
-                              const d = new Date(slot.date);
-                              if (isNaN(d.getTime())) return false;
-                              
-                              const slotTime = new Date(localDateTime).getTime();
-                              const bookedTime = d.getTime();
-                              
-                              return Math.abs(bookedTime - slotTime) < 30 * 60000;
-                            });
-                            return !isBooked; // Only show free slots
-                          })
-                          .map(time => {
-                            const localDateTime = `${selectedDay}T${time}:00`;
-                            const slotDateObj = new Date(localDateTime);
-                            const slotISO = !isNaN(slotDateObj.getTime()) ? slotDateObj.toISOString() : '';
-                            
-                            const isSelected = consultationDate && slotISO && consultationDate.slice(0, 16) === slotISO.slice(0, 16);
-
-                            return (
-                              <button
-                                key={time}
-                                type="button"
-                                onClick={() => {
-                                  if (slotISO) setConsultationDate(slotISO);
-                                }}
-                                className={`py-2 px-1 text-xs font-bold rounded-lg border transition-all ${
-                                  isSelected
-                                    ? 'border-brand-500 bg-brand-500/20 text-brand-500 dark:text-brand-400'
-                                    : 'border-surface-border bg-white dark:bg-surface/60 text-slate-800 dark:text-white hover:border-brand-500/50'
-                                }`}
-                              >
-                                {time}
-                              </button>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              <div>
-                <label className="label">Card Number (8 Digits)</label>
-                <div className="relative">
-                  <CreditCard className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="12345678" 
-                    className="input pl-10 tracking-widest" 
-                    maxLength="8"
-                    minLength="8"
-                    pattern="\d{8}"
-                    title="Card number must be exactly 8 digits"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                  <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="date">
+                    Date
+                  </label>
+                  <input
+                    id="date"
+                    name="date"
+                    type="date"
+                    required
+                    value={form.date}
+                    onChange={handleChange}
+                    className="input w-full p-2 border rounded-md dark:bg-slate-700 dark:text-white"
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Expiry Date</label>
-                  <input type="text" required placeholder="MM/YY" className="input text-center" maxLength="5" />
+                  <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="time">
+                    Time
+                  </label>
+                  <select
+                    id="time"
+                    name="time"
+                    required
+                    value={form.time}
+                    onChange={handleChange}
+                    className="input w-full p-2 border rounded-md dark:bg-slate-700 dark:text-white"
+                  >
+                    <option value="">Select a time</option>
+                    {allSlots.map(slot => (
+                      <option 
+                        key={slot} 
+                        value={slot} 
+                        disabled={bookedTimes.includes(slot)}
+                      >
+                        {slot} {bookedTimes.includes(slot) ? '(Booked)' : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <label className="label">CVC</label>
-                  <input type="text" required placeholder="123" className="input text-center" maxLength="4" />
-                </div>
-              </div>
 
-              <div className="pt-4 border-t border-surface-border mt-6">
-                <div className="flex justify-between items-center mb-6">
-                  <span className="text-slate-600 dark:text-slate-400">Total Amount:</span>
-                  <span className="text-2xl font-black text-slate-900 dark:text-white">
-                    ${displayPrice}
-                  </span>
+                <div>
+                  <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="reason">
+                    Reason for Consultation
+                  </label>
+                  <textarea
+                    id="reason"
+                    name="reason"
+                    required
+                    placeholder="Briefly describe what you want to discuss..."
+                    value={form.reason}
+                    onChange={handleChange}
+                    className="input w-full p-2 border rounded-md dark:bg-slate-700 dark:text-white h-24"
+                  />
                 </div>
-                <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-lg">
-                  {loading ? 'Processing...' : `Pay $${displayPrice}`}
-                </button>
+              </>
+            )}
+
+            <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+              <h2 className="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Payment Information</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="cardNumber">
+                    Card Number
+                  </label>
+                  <input
+                    id="cardNumber"
+                    name="cardNumber"
+                    type="text"
+                    placeholder="8 digits"
+                    value={form.cardNumber}
+                    onChange={handleChange}
+                    maxLength={8}
+                    className="input w-full p-2 border rounded-md dark:bg-slate-700 dark:text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="expiry">
+                      Expiry Date
+                    </label>
+                    <input
+                      id="expiry"
+                      name="expiry"
+                      type="text"
+                      placeholder="MM/YY"
+                      value={form.expiry}
+                      onChange={handleChange}
+                      maxLength={5}
+                      className="input w-full p-2 border rounded-md dark:bg-slate-700 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="cvv">
+                      CVV
+                    </label>
+                    <input
+                      id="cvv"
+                      name="cvv"
+                      type="text"
+                      placeholder="3 digits"
+                      value={form.cvv}
+                      onChange={handleChange}
+                      maxLength={3}
+                      className="input w-full p-2 border rounded-md dark:bg-slate-700 dark:text-white"
+                    />
+                  </div>
+                </div>
               </div>
-            </form>
-            
-            <p className="text-center text-xs text-slate-400 mt-4 flex items-center justify-center gap-1">
-              <ShieldCheck className="w-3 h-3" /> Payments are secure and encrypted
-            </p>
-          </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary w-full py-2 px-4 bg-brand-500 hover:bg-brand-600 text-white font-medium rounded-md transition-colors"
+            >
+              {loading ? 'Booking...' : 'Confirm Booking'}
+            </button>
+          </form>
         </div>
       </div>
     </DashboardLayout>

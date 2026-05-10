@@ -18,6 +18,7 @@ const Register        = lazy(() => import('./pages/auth/Register'));
 const AdminDashboard  = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminSettings   = lazy(() => import('./pages/admin/AdminSettings'));
 const AdminUsers      = lazy(() => import('./pages/admin/AdminUsers'));
+const AdminPayments   = lazy(() => import('./pages/admin/AdminPayments'));
 const AdminFinance    = lazy(() => import('./pages/admin/AdminFinance'));
 
 // Doctor
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="/admin"          element={<Guard roles="admin"><AdminDashboard /></Guard>} />
             <Route path="/admin/users"    element={<Guard roles="admin"><AdminUsers /></Guard>} />
             <Route path="/admin/finance"  element={<Guard roles="admin"><AdminFinance /></Guard>} />
+            <Route path="/admin/payments" element={<Guard roles="admin"><AdminPayments /></Guard>} />
             <Route path="/admin/settings" element={<Guard roles="admin"><AdminSettings /></Guard>} />
 
             {/* ── Doctor ────────────────────────────────────────────── */}

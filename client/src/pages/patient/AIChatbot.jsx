@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../../api/axiosInstance';
 import { Bot, Send, Loader2, User, Sparkles, RefreshCw } from 'lucide-react';
 import DashboardLayout from '../../components/common/DashboardLayout';
 import { chatbot } from '../../api/aiApi';
@@ -42,6 +44,10 @@ const MessageBubble = ({ msg }) => {
 
 const AIChatbot = () => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
+  const [unlocked, setUnlocked] = useState(false);
+  const [checking, setChecking] = useState(true);
+
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -56,6 +62,54 @@ const AIChatbot = () => {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    const checkUnlock = async () => {
+      try {
+        const { data } = await api.get('/bookings/patient');
+        const hasBought = data.data.bookings.some(b => b.type === 'chatbot' && b.status === 'confirmed');
+        setUnlocked(hasBought);
+      } catch (err) {
+        console.error('Failed to check unlock status:', err);
+      } finally {
+        setChecking(false);
+      }
+    };
+    checkUnlock();
+  }, []);
+
+  if (checking) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-brand-400" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!unlocked) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-md mx-auto mt-20 text-center">
+          <div className="card p-6 bg-white dark:bg-slate-800 rounded-lg shadow-md">
+            <Sparkles className="w-16 h-16 text-brand-400 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">Unlock AI Chatbot</h1>
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              Get access to your personal AI dietary assistant for meal planning and advice.
+            </p>
+            <div className="text-3xl font-bold text-brand-400 mb-6">$9.00</div>
+            <button
+              onClick={() => navigate(`/patient/checkout?type=chatbot&price=9`)}
+              className="btn-primary w-full py-3"
+            >
+              Buy Now to Unlock
+            </button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   const sendMessage = async (text) => {
     const msg = text || input.trim();

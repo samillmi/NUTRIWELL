@@ -9,6 +9,7 @@ import { getMyPatients, updateDoctorProfile } from '../../api/doctorApi';
 import { getUnreadCount } from '../../api/chatApi';
 import useAuthStore from '../../store/authStore';
 import toast from 'react-hot-toast';
+import api from '../../api/axiosInstance';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip,
 } from 'recharts';
@@ -25,6 +26,7 @@ const radarData = [
 const DoctorDashboard = () => {
   const { user }               = useAuthStore();
   const [patients, setPatients]= useState([]);
+  const [bookings, setBookings] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activePlansCount, setActivePlansCount] = useState(0);
   const [fee, setFee] = useState(user?.doctorProfile?.consultationFee || 29);
@@ -51,6 +53,9 @@ const DoctorDashboard = () => {
         
         const { data: unreadData } = await getUnreadCount();
         setUnreadCount(unreadData.data.count);
+
+        const { data: bookingData } = await api.get('/bookings/doctor');
+        setBookings(bookingData.data.bookings);
       } catch {
         toast.error('Could not load dashboard data.');
       } finally {
@@ -191,28 +196,25 @@ const DoctorDashboard = () => {
             <p className="text-xs text-slate-400 mb-3">Upcoming consultations</p>
             
             <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-hide">
-              {filtered
-                .filter(p => p.consultationDate)
-                .sort((a, b) => new Date(a.consultationDate) - new Date(b.consultationDate))
-                .map((patient) => (
-                  <div key={patient._id} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-surface-border flex justify-between items-center">
-                    <div>
-                      <p className="text-xs font-medium text-slate-900 dark:text-white">{patient.firstName} {patient.lastName}</p>
-                      <p className="text-[10px] text-brand-400">
-                        📅 {new Date(patient.consultationDate).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="flex gap-1">
-                      <Link to={`/doctor/chat?with=${patient._id}`} className="btn-ghost p-1 rounded-lg" title="Chat">
-                        <MessageSquare className="w-3 h-3" />
-                      </Link>
-                      <Link to={`/doctor/video?with=${patient._id}`} className="btn-ghost p-1 rounded-lg" title="Video">
-                        <Video className="w-3 h-3" />
-                      </Link>
-                    </div>
+              {bookings.map((booking) => (
+                <div key={booking._id} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-surface-border flex justify-between items-center">
+                  <div>
+                    <p className="text-xs font-medium text-slate-900 dark:text-white">{booking.patient?.firstName} {booking.patient?.lastName}</p>
+                    <p className="text-[10px] text-brand-400">
+                      📅 {new Date(booking.date).toLocaleDateString()} at {booking.time}
+                    </p>
                   </div>
-                ))}
-              {filtered.filter(p => p.consultationDate).length === 0 && (
+                  <div className="flex gap-1">
+                    <Link to={`/doctor/chat?with=${booking.patient?._id}`} className="btn-ghost p-1 rounded-lg" title="Chat">
+                      <MessageSquare className="w-3 h-3" />
+                    </Link>
+                    <Link to={`/doctor/video?with=${booking.patient?._id}`} className="btn-ghost p-1 rounded-lg" title="Video">
+                      <Video className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+              {bookings.length === 0 && (
                 <div className="text-center py-6 text-slate-600">
                   <Video className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-xs">No upcoming consultations.</p>

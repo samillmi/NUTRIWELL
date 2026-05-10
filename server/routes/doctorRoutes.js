@@ -15,8 +15,17 @@ router.get('/public', protect, async (req, res) => {
 
 // GET /api/doctors/patients  — list patients assigned to this doctor
 router.get('/patients', protect, doctorOrAdmin, async (req, res) => {
-  const patients = await User.find({ role: 'patient', assignedDoctor: req.user._id })
-    .select('firstName lastName email currentMetrics dietaryGoals createdAt consultationDate avatar');
+  const Booking = require('../models/Booking');
+  const bookings = await Booking.find({ doctor: req.user._id }).select('patient');
+  const patientIdsFromBookings = bookings.map(b => b.patient);
+
+  const patients = await User.find({
+    role: 'patient',
+    $or: [
+      { assignedDoctor: req.user._id },
+      { _id: { $in: patientIdsFromBookings } }
+    ]
+  }).select('firstName lastName email currentMetrics dietaryGoals createdAt consultationDate avatar');
   
   const DietPlan = require('../models/DietPlan');
   const activePlansCount = await DietPlan.countDocuments({ doctor: req.user._id, status: 'active' });

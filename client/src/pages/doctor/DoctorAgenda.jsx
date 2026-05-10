@@ -14,8 +14,8 @@ const DoctorAgenda = () => {
   useEffect(() => {
     const fetchSlots = async () => {
       try {
-        const { data } = await api.get(`/consultations/doctor/${user._id}`);
-        setBookedSlots(data.data.bookedSlots);
+        const { data } = await api.get('/bookings/doctor');
+        setBookedSlots(data.data.bookings);
       } catch (err) {
         toast.error('Failed to load agenda.');
       } finally {
@@ -116,13 +116,13 @@ const DoctorAgenda = () => {
                       </div>
                       <div className="space-y-1 max-h-[70px] overflow-y-auto scrollbar-hide">
                         {slots.map((slot, sIdx) => {
-                          const timeStr = new Date(slot.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                          const timeStr = slot.time;
                           return (
                             <div key={sIdx} className="text-[10px] p-1 rounded bg-brand-500/20 text-brand-300 truncate flex flex-col gap-0.5">
                               <span className="font-bold flex items-center gap-0.5">
                                 <Clock className="w-2.5 h-2.5" /> {timeStr}
                               </span>
-                              <span className="truncate">{slot.patientName}</span>
+                              <span className="truncate">{slot.patient?.firstName} {slot.patient?.lastName}</span>
                             </div>
                           );
                         })}

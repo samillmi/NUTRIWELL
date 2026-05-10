@@ -6,6 +6,7 @@ const { sendSuccess } = require('../utils/responseHelper');
 const User     = require('../models/User');
 const FoodScan = require('../models/FoodScan');
 const Payment  = require('../models/Payment');
+const Booking  = require('../models/Booking');
 
 // GET /api/admin/stats
 router.get('/stats', protect, adminOnly, async (req, res) => {
@@ -22,27 +23,32 @@ router.get('/stats', protect, adminOnly, async (req, res) => {
 
 // GET /api/admin/finance
 router.get('/finance', protect, adminOnly, async (req, res) => {
-  const payments = await Payment.find({ status: 'completed' });
+  const bookings = await Booking.find({ status: 'confirmed' });
   
-  const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
+  const totalRevenue = bookings.reduce((sum, b) => {
+    if (b.type === 'scanner') return sum + 19;
+    if (b.type === 'chatbot') return sum + 9;
+    if (b.type === 'consultation') return sum + 29;
+    return sum;
+  }, 0);
   
   // Aggregate by type
   const byType = {
-    plan_purchase: 0,
-    consultation_booking: 0,
-    subscription: 0
+    scanner: 0,
+    chatbot: 0,
+    consultation: 0
   };
   
-  payments.forEach(p => {
-    if (byType[p.type] !== undefined) {
-      byType[p.type] += p.amount;
-    }
+  bookings.forEach(b => {
+    if (b.type === 'scanner') byType.scanner += 19;
+    if (b.type === 'chatbot') byType.chatbot += 9;
+    if (b.type === 'consultation') byType.consultation += 29;
   });
 
   return sendSuccess(res, 200, 'Finance data fetched.', {
     totalRevenue,
     byType,
-    recentTransactions: await Payment.find().sort({ createdAt: -1 }).limit(10).populate('user', 'firstName lastName')
+    recentTransactions: await Booking.find().sort({ createdAt: -1 }).limit(10).populate('patient', 'firstName lastName')
   });
 });
 

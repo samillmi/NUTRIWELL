@@ -164,15 +164,15 @@ export const WebRTCProvider = ({ children }) => {
     };
   }, [socket, callStatus, user, endCall]);
 
-  const initiateCall = async (pid) => {
+  const initiateCall = async (pid, callType = 'video') => {
     if (!pid || !socket) return;
     setPartnerId(pid);
     setCallStatus('calling');
     
     // Navigate immediately to video page
-    navigate(`/${user.role}/video?with=${pid}`);
+    navigate(`/${user.role}/video?with=${pid}&mode=${callType}`);
 
-    const stream = await startLocalStream();
+    const stream = await startLocalStream(callType === 'video', true);
     if (!stream) {
       endCall();
       return;
@@ -184,7 +184,10 @@ export const WebRTCProvider = ({ children }) => {
     try {
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
-      socket.emit('call:initiate', { calleeId: pid, offer, callType: 'video' });
+      socket.emit('call:initiate', { calleeId: pid, offer, callType });
+      if (callType === 'voice') {
+        setIsVideoOff(true);
+      }
     } catch (err) {
       console.error('Error creating offer:', err);
       endCall();
@@ -194,10 +197,11 @@ export const WebRTCProvider = ({ children }) => {
   const answerCall = async () => {
     if (!incomingCall || !socket) return;
     
+    const callType = incomingCall.callType || 'video';
     // Navigate to video page
-    navigate(`/${user.role}/video?with=${incomingCall.callerId}`);
+    navigate(`/${user.role}/video?with=${incomingCall.callerId}&mode=${callType}`);
 
-    const stream = await startLocalStream();
+    const stream = await startLocalStream(callType === 'video', true);
     if (!stream) {
       rejectCall();
       return;
@@ -213,6 +217,9 @@ export const WebRTCProvider = ({ children }) => {
       
       socket.emit('call:answer', { callerId: incomingCall.callerId, answer });
       setCallStatus('connected');
+      if (callType === 'voice') {
+        setIsVideoOff(true);
+      }
     } catch (err) {
       console.error('Error answering call:', err);
       endCall();
@@ -237,8 +244,13 @@ export const WebRTCProvider = ({ children }) => {
 
   const toggleVideo = () => {
     if (localStream) {
-      localStream.getVideoTracks().forEach(track => track.enabled = !track.enabled);
-      setIsVideoOff(!localStream.getVideoTracks()[0].enabled);
+      const tracks = localStream.getVideoTracks();
+      if (tracks.length > 0) {
+        tracks.forEach(track => track.enabled = !track.enabled);
+        setIsVideoOff(!tracks[0].enabled);
+      } else {
+        setIsVideoOff(true);
+      }
     }
   };
 
