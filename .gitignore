@@ -1,0 +1,18 @@
+# Dependency directories
+node_modules/
+ai-service/venv/
+ai-service/__pycache__/
+
+# Environment files
+.env
+*/.env
+server/.env
+client/.env
+ai-service/.env
+
+# Uploads
+server/uploads/
+
+# OS files
+.DS_Store
+Thumbs.db
