@@ -13,6 +13,9 @@ const SettingsPage = () => {
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     email: user?.email || '',
+    specialization: user?.doctorProfile?.specialization || 'Dietitian',
+    bio: user?.doctorProfile?.bio || '',
+    yearsOfExperience: user?.doctorProfile?.yearsOfExperience || 0,
   });
   const [loading, setLoading] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState(user?.avatar || '');
@@ -36,6 +39,24 @@ const SettingsPage = () => {
     data.append('firstName', formData.firstName);
     data.append('lastName', formData.lastName);
     data.append('email', formData.email);
+    
+    if (user?.role === 'doctor') {
+      const profile = {
+        specialization: formData.specialization,
+        bio: formData.bio,
+        yearsOfExperience: Number(formData.yearsOfExperience),
+        consultationFee: user.doctorProfile?.consultationFee || 0,
+        licenseNumber: user.doctorProfile?.licenseNumber || '',
+        isVerified: user.doctorProfile?.isVerified || false,
+        verifiedAt: user.doctorProfile?.verifiedAt || null,
+        verifiedBy: user.doctorProfile?.verifiedBy || null,
+        rating: user.doctorProfile?.rating || 0,
+        totalReviews: user.doctorProfile?.totalReviews || 0,
+        reviews: user.doctorProfile?.reviews || [],
+        availableSlots: user.doctorProfile?.availableSlots || [],
+      };
+      data.append('doctorProfile', JSON.stringify(profile));
+    }
     
     const file = fileInputRef.current?.files[0];
     if (file) {
@@ -138,6 +159,55 @@ const SettingsPage = () => {
                   required
                 />
               </div>
+
+              {user?.role === 'doctor' && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Specialization / Title
+                      </label>
+                      <input
+                        type="text"
+                        name="specialization"
+                        value={formData.specialization}
+                        onChange={handleChange}
+                        placeholder="e.g. Sports Nutritionist"
+                        className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Experience (Years)
+                      </label>
+                      <input
+                        type="number"
+                        name="yearsOfExperience"
+                        value={formData.yearsOfExperience}
+                        onChange={handleChange}
+                        min="0"
+                        className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Biography (Bio)
+                    </label>
+                    <textarea
+                      name="bio"
+                      value={formData.bio}
+                      onChange={handleChange}
+                      rows={4}
+                      placeholder="Tell patients about your medical background and diet philosophy..."
+                      className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500"
+                    />
+                  </div>
+                </>
+              )}
 
               <div className="pt-4 flex justify-end">
                 <button

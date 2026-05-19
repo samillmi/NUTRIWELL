@@ -34,6 +34,15 @@ const adminOnly   = authorize('admin');
 const doctorOnly  = authorize('doctor');
 const patientOnly = authorize('patient');
 const doctorOrAdmin  = authorize('admin', 'doctor');
+const verifiedDoctor = (req, res, next) => {
+  if (req.user.role === 'admin') return next(); // Admin bypassed
+  if (req.user.role !== 'doctor') return sendError(res, 403, 'Access denied. Doctor only.');
+  if (!req.user.doctorProfile?.isVerified) {
+    return sendError(res, 403, 'Your account is pending admin approval. Access restricted.');
+  }
+  next();
+};
+
 const anyAuthenticated = authorize('admin', 'doctor', 'patient');
 
-module.exports = { authorize, adminOnly, doctorOnly, patientOnly, doctorOrAdmin, anyAuthenticated };
+module.exports = { authorize, adminOnly, doctorOnly, patientOnly, doctorOrAdmin, anyAuthenticated, verifiedDoctor };

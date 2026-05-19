@@ -33,8 +33,27 @@ const AdminPayments = () => {
     }
   };
 
-  const pendingBookings = bookings.filter(b => b.status === 'pending');
-  const historyBookings = bookings.filter(b => b.status !== 'pending');
+  const seenGroups = new Set();
+  const pendingBookings = bookings.filter(b => {
+    if (b.status !== 'pending') return false;
+    
+    const groupMatch = b.reason?.match(/\[Group: ([a-z0-9]+)\]/i);
+    if (groupMatch) {
+      const groupId = groupMatch[1];
+      if (seenGroups.has(groupId)) {
+        return false; // Skip duplicate groups
+      }
+      seenGroups.add(groupId);
+    }
+    return true;
+  });
+  
+  const historyBookings = bookings.filter(b => {
+    if (b.status === 'pending') return false;
+    // Hide consultations that are part of a plan purchase in history too
+    if (b.type === 'consultation' && b.reason?.includes('[Group:')) return false;
+    return true;
+  });
 
   const getTypeIcon = (type) => {
     if (type === 'scanner') return <ScanLine className="w-4 h-4 text-brand-400" />;
@@ -71,36 +90,45 @@ const AdminPayments = () => {
                 <tbody>
                   {pendingBookings.map(b => (
                     <tr key={b._id} className="bg-white border-b dark:bg-slate-800 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-brand-500/10 flex items-center justify-center">
-                          <User className="w-4 h-4 text-brand-400" />
+                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-brand-500/10 flex items-center justify-center shrink-0">
+                            <User className="w-4 h-4 text-brand-400" />
+                          </div>
+                          <span className="truncate">{b.patient?.firstName} {b.patient?.lastName}</span>
                         </div>
-                        {b.patient?.firstName} {b.patient?.lastName}
-                      </td>
-                      <td className="px-4 py-3 flex items-center gap-1 capitalize">
-                        {getTypeIcon(b.type)} {b.type}
                       </td>
                       <td className="px-4 py-3">
-                        {b.type === 'consultation' ? `Dr. ${b.doctor?.lastName} at ${b.time}` : b.reason}
+                        <div className="flex items-center gap-1 capitalize">
+                          {getTypeIcon(b.type)} 
+                          <span>{b.type?.replace('_', ' ')}</span>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
+                        <div className="max-w-xs truncate text-xs" title={b.reason}>
+                          {b.type === 'consultation' ? `Dr. ${b.doctor?.lastName} at ${b.time}` : b.reason}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
                         {new Date(b.createdAt).toLocaleDateString()}
                       </td>
-                      <td className="px-4 py-3 flex gap-2">
-                        <button
-                          onClick={() => handleStatusUpdate(b._id, 'confirmed')}
-                          className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-colors"
-                          title="Approve"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleStatusUpdate(b._id, 'cancelled')}
-                          className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
-                          title="Reject"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleStatusUpdate(b._id, 'confirmed')}
+                            className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-colors"
+                            title="Approve"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleStatusUpdate(b._id, 'cancelled')}
+                            className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
+                            title="Reject"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -131,23 +159,28 @@ const AdminPayments = () => {
                 <tbody>
                   {historyBookings.map(b => (
                     <tr key={b._id} className="bg-white border-b dark:bg-slate-800 dark:border-slate-700">
-                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-brand-500/10 flex items-center justify-center">
-                          <User className="w-4 h-4 text-brand-400" />
+                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-brand-500/10 flex items-center justify-center shrink-0">
+                            <User className="w-4 h-4 text-brand-400" />
+                          </div>
+                          <span className="truncate">{b.patient?.firstName} {b.patient?.lastName}</span>
                         </div>
-                        {b.patient?.firstName} {b.patient?.lastName}
                       </td>
-                      <td className="px-4 py-3 flex items-center gap-1 capitalize">
-                        {getTypeIcon(b.type)} {b.type}
+                      <td className="px-4 py-3 capitalize">
+                        <div className="flex items-center gap-1">
+                          {getTypeIcon(b.type)} 
+                          <span>{b.type?.replace('_', ' ')}</span>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          b.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          b.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'
                         }`}>
                           {b.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-xs whitespace-nowrap text-slate-500">
                         {new Date(b.createdAt).toLocaleDateString()}
                       </td>
                     </tr>

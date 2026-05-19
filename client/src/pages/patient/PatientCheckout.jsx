@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/common/DashboardLayout';
 import api from '../../api/axiosInstance';
 import toast from 'react-hot-toast';
+import { Star } from 'lucide-react';
 
 const PatientCheckout = () => {
   const [searchParams] = useSearchParams();
@@ -20,8 +21,17 @@ const PatientCheckout = () => {
   });
   const [loading, setLoading] = useState(false);
   const [bookedTimes, setBookedTimes] = useState([]);
+  const [doctor, setDoctor] = useState(null);
   
   const allSlots = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'];
+
+  useEffect(() => {
+    if (doctorId) {
+      api.get(`/doctors/${doctorId}`)
+        .then(({ data }) => setDoctor(data.data.doctor))
+        .catch(() => console.error('Failed to fetch doctor details'));
+    }
+  }, [doctorId]);
 
   useEffect(() => {
     const fetchBookedSlots = async () => {
@@ -44,8 +54,8 @@ const PatientCheckout = () => {
     e.preventDefault();
     
     // Card Validation
-    if (!form.cardNumber || form.cardNumber.length !== 8 || !/^\d+$/.test(form.cardNumber)) {
-      toast.error('Card number must be exactly 8 digits.');
+    if (!form.cardNumber || form.cardNumber.length !== 16 || !/^\d+$/.test(form.cardNumber)) {
+      toast.error('Card number must be exactly 16 digits.');
       return;
     }
     if (!form.expiry || !/^(0[1-9]|1[0-2])\/\d{2}$/.test(form.expiry)) {
@@ -64,7 +74,7 @@ const PatientCheckout = () => {
           type: type,
           reason: type === 'plan_purchase' ? `Purchase of Diet Plan ID: ${searchParams.get('planId')}` : `Purchase of ${type}`
         });
-        toast.success('Payment submitted! Waiting for Admin approval.');
+        toast.success('Payment successful! Plan activated.');
         navigate('/patient');
       } catch (err) {
         toast.error('Failed to submit payment.');
@@ -109,6 +119,24 @@ const PatientCheckout = () => {
             </span>
             <span className="text-lg font-bold text-brand-400">${searchParams.get('price') || 29}</span>
           </div>
+
+          {doctor && (
+            <div className="mb-4 p-3 bg-surface border border-surface-border rounded-lg flex justify-between items-center">
+              <div>
+                <p className="text-xs text-slate-500 uppercase">Doctor</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                  Dr. {doctor.firstName} {doctor.lastName}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  {doctor.doctorProfile?.rating || 5.0}
+                </span>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {type !== 'scanner' && type !== 'chatbot' && type !== 'plan_purchase' && (
               <>
@@ -181,10 +209,10 @@ const PatientCheckout = () => {
                     id="cardNumber"
                     name="cardNumber"
                     type="text"
-                    placeholder="8 digits"
+                    placeholder="16 digits"
                     value={form.cardNumber}
                     onChange={handleChange}
-                    maxLength={8}
+                    maxLength={16}
                     className="input w-full p-2 border rounded-md dark:bg-slate-700 dark:text-white"
                   />
                 </div>

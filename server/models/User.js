@@ -32,14 +32,20 @@ const DoctorProfileSchema = new mongoose.Schema(
     rating:         { type: Number, default: 0, min: 0, max: 5 },
     totalReviews:   { type: Number, default: 0 },
     consultationFee: { type: Number, default: 29 },
+    reviews: [{
+      patient: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      rating: { type: Number, min: 1, max: 5 },
+      feedback: { type: String },
+      createdAt: { type: Date, default: Date.now }
+    }]
   },
   { _id: false }
 );
 
 const SubscriptionSchema = new mongoose.Schema(
   {
-    plan:      { type: String, enum: ['free', 'basic', 'premium'], default: 'free' },
-    status:    { type: String, enum: ['active', 'cancelled', 'expired'], default: 'active' },
+    plan:      { type: String, enum: ['free', 'basic', 'standard', 'premium'], default: 'free' },
+    status:    { type: String, enum: ['pending', 'active', 'cancelled', 'expired'], default: 'active' },
     startDate: { type: Date },
     endDate:   { type: Date },
     stripeCustomerId:     { type: String },
@@ -95,6 +101,7 @@ const UserSchema = new mongoose.Schema(
     },
     allergies: [{ type: String }],
     medicalConditions: [{ type: String }],
+    focusAreas: [{ type: String }],
 
     // ── Subscription (patients & doctors) ────────────────────────────────
     subscription: SubscriptionSchema,

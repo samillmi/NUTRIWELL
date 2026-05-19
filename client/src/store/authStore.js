@@ -5,10 +5,10 @@ import { getMe } from '../api/authApi';
 const useAuthStore = create(
   persist(
     (set, get) => ({
-      user:  null,
+      user: null,
       token: null,
       isAuthenticated: false,
-      isLoading: false,
+      isLoading: !!localStorage.getItem('accessToken'),
 
       setAuth: (user, token) => {
         localStorage.setItem('accessToken', token);

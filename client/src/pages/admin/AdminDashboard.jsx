@@ -124,13 +124,15 @@ const AdminDashboard = () => {
       ]
     : [];
 
+  const chartData = financeStats?.chartData || revenueData;
+
   return (
     <DashboardLayout>
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-          <p className="text-slate-400 text-sm mt-1">Live platform overview & management</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Admin Dashboard</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Live platform overview & management</p>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={load} className="btn-ghost gap-2 text-xs">
@@ -144,13 +146,13 @@ const AdminDashboard = () => {
 
       {/* ── Real Stat cards ──────────────────────────────────────────── */}
       {loading ? (
-        <div className="grid grid-cols-5 gap-5 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 mb-8">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="card h-28 skeleton" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-5 gap-5 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 mb-8">
           {statCards.map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} className="card-hover animate-slide-up">
               <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-4`}>
@@ -164,39 +166,34 @@ const AdminDashboard = () => {
       )}
 
       {/* ── Charts ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-5 mb-8">
-        <div className="card col-span-2">
-          <h2 className="text-sm font-semibold text-white mb-4">Revenue & Profit (Projected)</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
+        <div className="card lg:col-span-2">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">Revenue (Projected)</h2>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={revenueData}>
+            <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="#14b8a6" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#14b8a6" stopOpacity={0}   />
                 </linearGradient>
-                <linearGradient id="pro" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#8b5cf6" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}   />
-                </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
-                     tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#64748b" opacity={0.2} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false}
+                     tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(1)}k` : `$${v}`} />
               <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
+              <Legend wrapperStyle={{ fontSize: 11, color: '#64748b' }} />
               <Area type="monotone" dataKey="revenue" stroke="#14b8a6" strokeWidth={2} fill="url(#rev)" name="Revenue" />
-              <Area type="monotone" dataKey="profit"  stroke="#8b5cf6" strokeWidth={2} fill="url(#pro)" name="Profit" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
         <div className="card">
-          <h2 className="text-sm font-semibold text-white mb-4">Subscriptions</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">Subscriptions</h2>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={revenueData} barSize={18}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+            <BarChart data={chartData} barSize={18}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#64748b" opacity={0.2} vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="subscriptions" fill="#14b8a6" radius={[4,4,0,0]} name="subscriptions" />
             </BarChart>
@@ -209,7 +206,7 @@ const AdminDashboard = () => {
         <div className="card mb-6 border-amber-500/20">
           <div className="flex items-center gap-2 mb-4">
             <ShieldCheck className="w-4 h-4 text-amber-400" />
-            <h2 className="text-sm font-semibold text-white">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
               Pending Doctor Verifications
               <span className="ml-2 badge-amber">{pendingDoctors.length}</span>
             </h2>
@@ -225,10 +222,10 @@ const AdminDashboard = () => {
                     {doc.firstName[0]}{doc.lastName[0]}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">
                       Dr. {doc.firstName} {doc.lastName}
                     </p>
-                    <p className="text-xs text-slate-400">{doc.email}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{doc.email}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -253,7 +250,7 @@ const AdminDashboard = () => {
       {/* ── All Users Table ───────────────────────────────────────────── */}
       <div className="card">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-sm font-semibold text-white">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
             All Users <span className="text-slate-500 font-normal ml-1">({filtered.length})</span>
           </h2>
           <div className="relative">
@@ -277,21 +274,21 @@ const AdminDashboard = () => {
           <div className="space-y-2 max-h-[420px] overflow-y-auto scrollbar-hide">
             {filtered.map((u) => (
               <div key={u._id}
-                   className="flex items-center justify-between p-3 rounded-xl bg-surface/60
-                              border border-surface-border hover:border-brand-500/20 transition-all">
-                <div className="flex items-center gap-3">
+                   className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 gap-3 rounded-xl bg-white/80 dark:bg-slate-800/40 backdrop-blur-md
+                              border border-slate-200 dark:border-white/5 hover:border-brand-500/20 transition-all">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
                   <div className="w-9 h-9 rounded-full bg-brand-gradient flex items-center
                                   justify-center text-xs font-bold text-white shrink-0">
                     {u.firstName[0]}{u.lastName[0]}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">
                       {u.firstName} {u.lastName}
                     </p>
-                    <p className="text-xs text-slate-500">{u.email}</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">{u.email}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto justify-start sm:justify-end">
                   <span className={roleColor[u.role] || 'badge-teal'}>{u.role}</span>
                   {u.role === 'doctor' && (
                     <span className={u.doctorProfile?.isVerified ? 'badge-teal' : 'badge-amber'}>

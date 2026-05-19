@@ -23,6 +23,9 @@ const chatRoutes    = require('./routes/chatRoutes');
 const aiRoutes      = require('./routes/aiRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
+const blogRoutes    = require('./routes/blogRoutes');
+const supportRoutes  = require('./routes/supportRoutes');
+const planRoutes    = require('./routes/planRoutes');
 
 const { sendError } = require('./utils/responseHelper');
 
@@ -87,6 +90,9 @@ app.use('/api/ai',       aiLimiter, aiRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/consultations', consultationRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/blogs', blogRoutes);
+app.use('/api/support', supportRoutes);
+app.use('/api/plans', planRoutes);
 
 // ── 404 handler ────────────────────────────────────────────────────────────────
 app.use((req, res) => {

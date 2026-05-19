@@ -3,11 +3,13 @@ const { protect }     = require('../middleware/authMiddleware');
 const { patientOnly } = require('../middleware/rbacMiddleware');
 const { uploadSingle }= require('../middleware/uploadMiddleware');
 const aiController    = require('../controllers/aiController');
+const { checkSubscription } = require('../middleware/subscriptionMiddleware');
 
 const router = express.Router();
 
-// All AI routes require authentication
+// All AI routes require authentication and premium subscription
 router.use(protect);
+router.use(checkSubscription('premium'));
 
 /**
  * @route   POST /api/ai/scan

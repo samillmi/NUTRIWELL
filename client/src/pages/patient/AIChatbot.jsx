@@ -6,6 +6,7 @@ import DashboardLayout from '../../components/common/DashboardLayout';
 import { chatbot } from '../../api/aiApi';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
+import useChatbotStore from '../../store/chatbotStore';
 
 const suggestions = [
   'What should I eat before a morning workout?',
@@ -20,19 +21,18 @@ const MessageBubble = ({ msg }) => {
     <div className={`flex gap-3 animate-slide-up ${isBot ? '' : 'flex-row-reverse'}`}>
       {/* Avatar */}
       <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0
-        ${isBot ? 'bg-brand-gradient shadow-glow-teal' : 'bg-accent-500/20 border border-accent-500/30'}`}>
+        ${isBot ? 'bg-brand-gradient shadow-glow-teal' : 'bg-brand-500/10 border border-brand-500/20'}`}>
         {isBot
           ? <Bot className="w-4 h-4 text-white" />
-          : <User className="w-4 h-4 text-accent-400" />}
+          : <User className="w-4 h-4 text-brand-500" />}
       </div>
 
       <div className={`max-w-[75%] ${isBot ? '' : 'items-end flex flex-col'}`}>
         <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed
           ${isBot
             ? 'bg-surface-card dark:bg-slate-800/50 border border-surface-border dark:border-white/10 text-slate-800 dark:text-slate-200 rounded-tl-sm'
-            : 'bg-accent-gradient text-white rounded-tr-sm'
+            : 'bg-brand-gradient text-white rounded-tr-sm shadow-glow-brand/10'
           }`}
-          style={!isBot ? { background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)' } : {}}
         >
           {msg.content}
         </div>
@@ -45,50 +45,34 @@ const MessageBubble = ({ msg }) => {
 const AIChatbot = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const [unlocked, setUnlocked] = useState(false);
-  const [checking, setChecking] = useState(true);
 
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: `Hi ${user?.firstName || 'there'}! 👋 I'm NutriBot, your personal AI dietary assistant. I can help you with meal planning, calorie counting, and nutrition advice. What would you like to know today?`,
-      time: 'Now',
-    },
-  ]);
+  const sub = user?.subscription;
+  const isExpired = sub?.endDate && new Date(sub.endDate) < new Date();
+  const isDocOrAdmin = user?.role === 'doctor' || user?.role === 'admin';
+  const hasAccess = isDocOrAdmin || (sub?.status === 'active' && !isExpired && sub.plan === 'premium');
+
+  const { messages, setMessages, addMessage } = useChatbotStore();
   const [input,   setInput]   = useState('');
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
 
   useEffect(() => {
+    if (messages === null) {
+      setMessages([
+        {
+          role: 'assistant',
+          content: `Hi ${user?.firstName || 'there'}! 👋 I'm NutriBot, your personal AI dietary assistant. I can help you with meal planning, calorie counting, and nutrition advice. What would you like to know today?`,
+          time: 'Now',
+        },
+      ]);
+    }
+  }, [messages, user, setMessages]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  useEffect(() => {
-    const checkUnlock = async () => {
-      try {
-        const { data } = await api.get('/bookings/patient');
-        const hasBought = data.data.bookings.some(b => b.type === 'chatbot' && b.status === 'confirmed');
-        setUnlocked(hasBought);
-      } catch (err) {
-        console.error('Failed to check unlock status:', err);
-      } finally {
-        setChecking(false);
-      }
-    };
-    checkUnlock();
-  }, []);
-
-  if (checking) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-brand-400" />
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (!unlocked) {
+  if (!hasAccess) {
     return (
       <DashboardLayout>
         <div className="max-w-md mx-auto mt-20 text-center">
@@ -96,14 +80,13 @@ const AIChatbot = () => {
             <Sparkles className="w-16 h-16 text-brand-400 mx-auto mb-4" />
             <h1 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">Unlock AI Chatbot</h1>
             <p className="text-slate-600 dark:text-slate-400 mb-6">
-              Get access to your personal AI dietary assistant for meal planning and advice.
+              Get access to your personal AI dietary assistant for meal planning and advice. You need a Premium Plan to access it.
             </p>
-            <div className="text-3xl font-bold text-brand-400 mb-6">$9.00</div>
             <button
-              onClick={() => navigate(`/patient/checkout?type=chatbot&price=9`)}
+              onClick={() => navigate('/patient/doctors')}
               className="btn-primary w-full py-3"
             >
-              Buy Now to Unlock
+              Upgrade Plan
             </button>
           </div>
         </div>
@@ -116,27 +99,21 @@ const AIChatbot = () => {
     if (!msg || loading) return;
 
     const userMsg = { role: 'user', content: msg, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-    setMessages((p) => [...p, userMsg]);
+    addMessage(userMsg);
     setInput('');
     setLoading(true);
 
     try {
-      const history = messages.map(({ role, content }) => ({ role, content }));
+      const history = (messages || []).map(({ role, content }) => ({ role, content }));
       const { data } = await chatbot({ message: msg, history });
-      setMessages((p) => [
-        ...p,
-        {
-          role: 'assistant',
-          content: data.data.reply,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
+      addMessage({
+        role: 'assistant',
+        content: data.data.reply,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
     } catch (err) {
       toast.error('NutriBot is unavailable right now.');
-      setMessages((p) => [
-        ...p,
-        { role: 'assistant', content: "⚠️ Sorry, I'm having trouble connecting. Please try again shortly.", time: 'Now' },
-      ]);
+      addMessage({ role: 'assistant', content: "⚠️ Sorry, I'm having trouble connecting. Please try again shortly.", time: 'Now' });
     } finally {
       setLoading(false);
     }
@@ -163,7 +140,13 @@ const AIChatbot = () => {
             </div>
           </div>
           <button
-            onClick={() => setMessages([messages[0]])}
+            onClick={() => setMessages([
+              {
+                role: 'assistant',
+                content: `Hi ${user?.firstName || 'there'}! 👋 I'm NutriBot, your personal AI dietary assistant. I can help you with meal planning, calorie counting, and nutrition advice. What would you like to know today?`,
+                time: 'Now',
+              },
+            ])}
             className="btn-ghost gap-2 text-xs"
           >
             <RefreshCw className="w-4 h-4" /> Clear chat
@@ -172,7 +155,7 @@ const AIChatbot = () => {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto space-y-5 pr-2 scrollbar-hide pb-4">
-          {messages.map((msg, i) => (
+          {(messages || []).map((msg, i) => (
             <MessageBubble key={i} msg={msg} />
           ))}
 
@@ -196,7 +179,7 @@ const AIChatbot = () => {
         </div>
 
         {/* Suggestion chips */}
-        {messages.length <= 1 && (
+        {(!messages || messages.length <= 1) && (
           <div className="shrink-0 flex flex-wrap gap-2 mb-4">
             {suggestions.map((s) => (
               <button key={s} onClick={() => sendMessage(s)}

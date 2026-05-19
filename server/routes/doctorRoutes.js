@@ -1,36 +1,52 @@
 const express = require('express');
 const router  = express.Router();
 const { protect }   = require('../middleware/authMiddleware');
-const { doctorOrAdmin } = require('../middleware/rbacMiddleware');
+const { doctorOrAdmin, verifiedDoctor } = require('../middleware/rbacMiddleware');
 const { sendSuccess } = require('../utils/responseHelper');
 const User     = require('../models/User');
 
-// GET /api/doctors/public — get all doctors for marketplace
-router.get('/public', protect, async (req, res) => {
-  const doctors = await User.find({ role: 'doctor' })
+// GET /api/doctors/public — get all doctors for marketplace (Public)
+router.get('/public', async (req, res) => {
+  const doctors = await User.find({ 
+    role: 'doctor',
+    'doctorProfile.isVerified': true 
+  })
     .select('-password -emailVerifyToken -passwordResetToken')
+    .populate('doctorProfile.reviews.patient', 'firstName lastName avatar')
     .sort({ 'doctorProfile.rating': -1 });
   return sendSuccess(res, 200, 'Verified doctors fetched.', { doctors });
 });
 
 // GET /api/doctors/patients  — list patients assigned to this doctor
-router.get('/patients', protect, doctorOrAdmin, async (req, res) => {
+router.get('/patients', protect, verifiedDoctor, async (req, res) => {
   const Booking = require('../models/Booking');
-  const bookings = await Booking.find({ doctor: req.user._id }).select('patient');
+  const bookings = await Booking.find({ 
+    doctor: req.user._id, 
+    status: 'confirmed' 
+  }).select('patient');
   const patientIdsFromBookings = bookings.map(b => b.patient);
 
   const patients = await User.find({
     role: 'patient',
+    'subscription.status': 'active', // Only show active subscriptions
     $or: [
       { assignedDoctor: req.user._id },
       { _id: { $in: patientIdsFromBookings } }
     ]
-  }).select('firstName lastName email currentMetrics dietaryGoals createdAt consultationDate avatar');
+  }).select('firstName lastName email currentMetrics healthMetrics dietaryGoals focusAreas allergies medicalConditions createdAt consultationDate avatar');
   
+  const doctor = await User.findById(req.user._id).select('doctorProfile.reviews');
+  const reviews = doctor?.doctorProfile?.reviews || [];
+
+  const patientsWithReviews = patients.map(p => {
+    const review = reviews.find(r => r.patient.toString() === p._id.toString());
+    return { ...p.toObject(), review };
+  });
+
   const DietPlan = require('../models/DietPlan');
   const activePlansCount = await DietPlan.countDocuments({ doctor: req.user._id, status: 'active' });
 
-  return sendSuccess(res, 200, 'Patients fetched.', { patients, activePlansCount });
+  return sendSuccess(res, 200, 'Patients fetched.', { patients: patientsWithReviews, activePlansCount });
 });
 
 // GET /api/doctors/profile
@@ -43,6 +59,14 @@ const cloudinary = require('../config/cloudinary');
 
 // PATCH /api/doctors/profile
 router.patch('/profile', protect, doctorOrAdmin, uploadSingle(), async (req, res) => {
+  if (req.body.doctorProfile && typeof req.body.doctorProfile === 'string') {
+    try {
+      req.body.doctorProfile = JSON.parse(req.body.doctorProfile);
+    } catch (e) {
+      console.error('Failed to parse doctorProfile string:', e);
+    }
+  }
+
   const allowed = ['doctorProfile', 'phone', 'avatar', 'firstName', 'lastName', 'email'];
   const updates = {};
   allowed.forEach((k) => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
@@ -84,6 +108,39 @@ router.patch('/profile', protect, doctorOrAdmin, uploadSingle(), async (req, res
 
   const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
   return sendSuccess(res, 200, 'Profile updated.', { user });
+});
+
+// GET /api/doctors/:id — get a specific doctor by ID
+router.get('/:id', protect, async (req, res) => {
+  const doctor = await User.findOne({ _id: req.params.id, role: 'doctor' })
+    .select('-password -emailVerifyToken -passwordResetToken');
+  if (!doctor) return sendError(res, 404, 'Doctor not found.');
+  return sendSuccess(res, 200, 'Doctor fetched.', { doctor });
+});
+
+// POST /api/doctors/:id/reviews — patients rate a doctor
+router.post('/:id/reviews', protect, async (req, res) => {
+  const { rating, feedback } = req.body;
+  const doctor = await User.findOne({ _id: req.params.id, role: 'doctor' });
+  if (!doctor) return sendError(res, 404, 'Doctor not found.');
+  
+  // Check if patient already reviewed this doctor (commented out for testing)
+  // const existing = doctor.doctorProfile.reviews.find(r => r.patient.toString() === req.user._id.toString());
+  // if (existing) return sendError(res, 400, 'You have already reviewed this doctor.');
+  
+  doctor.doctorProfile.reviews.push({
+    patient: req.user._id,
+    rating,
+    feedback
+  });
+  
+  // Recalculate average rating
+  const totalRating = doctor.doctorProfile.reviews.reduce((sum, r) => sum + r.rating, 0);
+  doctor.doctorProfile.rating = parseFloat((totalRating / doctor.doctorProfile.reviews.length).toFixed(1));
+  doctor.doctorProfile.totalReviews = doctor.doctorProfile.reviews.length;
+  
+  await doctor.save();
+  return sendSuccess(res, 200, 'Review submitted successfully.', { doctor });
 });
 
 module.exports = router;

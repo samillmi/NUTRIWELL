@@ -16,3 +16,6 @@ server/uploads/
 # OS files
 .DS_Store
 Thumbs.db
+
+# YOLO weights
+yolo/

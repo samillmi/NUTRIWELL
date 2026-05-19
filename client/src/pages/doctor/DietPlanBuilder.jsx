@@ -27,9 +27,16 @@ const DietPlanBuilder = () => {
   });
 
   // Simple day 1 template
-  const [meals, setMeals] = useState([
-    { id: 1, type: 'breakfast', time: '08:00', instructions: '', foods: [{ name: '', quantity: 100, unit: 'g' }] }
+  const [weeklyPlan, setWeeklyPlan] = useState([
+    {
+      dayNumber: 1,
+      dayName: 'Day 1',
+      meals: [
+        { id: 1, type: 'breakfast', time: '08:00', instructions: '', foods: [{ name: '', quantity: 100, unit: 'g' }] }
+      ]
+    }
   ]);
+  const [activeDayIdx, setActiveDayIdx] = useState(0);
 
   useEffect(() => {
     getMyPatients()
@@ -43,39 +50,114 @@ const DietPlanBuilder = () => {
     }
   }, [patientId]);
 
-  const handleAddMeal = () => {
-    setMeals([...meals, { id: Date.now(), type: 'lunch', time: '13:00', instructions: '', foods: [{ name: '', quantity: 100, unit: 'g' }] }]);
+  const handleAddDay = () => {
+    if (weeklyPlan.length >= 7) {
+      toast.error('Maximum of 7 days in a weekly plan template.');
+      return;
+    }
+    const nextDayNum = weeklyPlan.length + 1;
+    const newDay = {
+      dayNumber: nextDayNum,
+      dayName: `Day ${nextDayNum}`,
+      meals: [
+        { id: Date.now(), type: 'breakfast', time: '08:00', instructions: '', foods: [{ name: '', quantity: 100, unit: 'g' }] }
+      ]
+    };
+    setWeeklyPlan([...weeklyPlan, newDay]);
+    setActiveDayIdx(weeklyPlan.length); // Switch to the newly created day
+    toast.success(`Day ${nextDayNum} added!`);
   };
 
-  const handleMealChange = (id, field, value) => {
-    setMeals(meals.map(m => m.id === id ? { ...m, [field]: value } : m));
+  const handleRemoveDay = (dayIdx) => {
+    if (weeklyPlan.length <= 1) {
+      toast.error('A diet plan must contain at least 1 day.');
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to delete Day ${weeklyPlan[dayIdx].dayNumber}?`)) return;
+    
+    const filtered = weeklyPlan.filter((_, idx) => idx !== dayIdx);
+    // Re-index remaining days
+    const updated = filtered.map((d, idx) => ({
+      ...d,
+      dayNumber: idx + 1,
+      dayName: `Day ${idx + 1}`
+    }));
+    
+    setWeeklyPlan(updated);
+    setActiveDayIdx(Math.max(0, dayIdx - 1));
+    toast.success('Day removed.');
+  };
+
+  const handleAddMeal = () => {
+    const newMeal = { id: Date.now(), type: 'lunch', time: '13:00', instructions: '', foods: [{ name: '', quantity: 100, unit: 'g' }] };
+    const updatedDays = weeklyPlan.map((d, idx) => {
+      if (idx !== activeDayIdx) return d;
+      return { ...d, meals: [...d.meals, newMeal] };
+    });
+    setWeeklyPlan(updatedDays);
+  };
+
+  const handleMealChange = (mealId, field, value) => {
+    const updatedDays = weeklyPlan.map((d, idx) => {
+      if (idx !== activeDayIdx) return d;
+      return {
+        ...d,
+        meals: d.meals.map(m => m.id === mealId ? { ...m, [field]: value } : m)
+      };
+    });
+    setWeeklyPlan(updatedDays);
   };
 
   const handleFoodChange = (mealId, foodIdx, field, value) => {
-    setMeals(meals.map(m => {
-      if (m.id !== mealId) return m;
-      const newFoods = [...m.foods];
-      newFoods[foodIdx] = { ...newFoods[foodIdx], [field]: value };
-      return { ...m, foods: newFoods };
-    }));
+    const updatedDays = weeklyPlan.map((d, idx) => {
+      if (idx !== activeDayIdx) return d;
+      return {
+        ...d,
+        meals: d.meals.map(m => {
+          if (m.id !== mealId) return m;
+          const newFoods = [...m.foods];
+          newFoods[foodIdx] = { ...newFoods[foodIdx], [field]: value };
+          return { ...m, foods: newFoods };
+        })
+      };
+    });
+    setWeeklyPlan(updatedDays);
   };
 
   const addFood = (mealId) => {
-    setMeals(meals.map(m => {
-      if (m.id !== mealId) return m;
-      return { ...m, foods: [...m.foods, { name: '', quantity: 100, unit: 'g' }] };
-    }));
+    const updatedDays = weeklyPlan.map((d, idx) => {
+      if (idx !== activeDayIdx) return d;
+      return {
+        ...d,
+        meals: d.meals.map(m => {
+          if (m.id !== mealId) return m;
+          return { ...m, foods: [...m.foods, { name: '', quantity: 100, unit: 'g' }] };
+        })
+      };
+    });
+    setWeeklyPlan(updatedDays);
   };
 
   const removeFood = (mealId, foodIdx) => {
-    setMeals(meals.map(m => {
-      if (m.id !== mealId) return m;
-      return { ...m, foods: m.foods.filter((_, i) => i !== foodIdx) };
-    }));
+    const updatedDays = weeklyPlan.map((d, idx) => {
+      if (idx !== activeDayIdx) return d;
+      return {
+        ...d,
+        meals: d.meals.map(m => {
+          if (m.id !== mealId) return m;
+          return { ...m, foods: m.foods.filter((_, i) => i !== foodIdx) };
+        })
+      };
+    });
+    setWeeklyPlan(updatedDays);
   };
 
-  const removeMeal = (id) => {
-    setMeals(meals.filter(m => m.id !== id));
+  const removeMeal = (mealId) => {
+    const updatedDays = weeklyPlan.map((d, idx) => {
+      if (idx !== activeDayIdx) return d;
+      return { ...d, meals: d.meals.filter(m => m.id !== mealId) };
+    });
+    setWeeklyPlan(updatedDays);
   };
 
   const handleSubmit = async (e) => {
@@ -89,15 +171,16 @@ const DietPlanBuilder = () => {
       const payload = {
         ...form,
         patient: form.isPublic ? undefined : form.patient,
-        weeklyPlan: [{
-          dayNumber: 1,
-          meals: meals.map(m => ({
+        weeklyPlan: weeklyPlan.map(d => ({
+          dayNumber: d.dayNumber,
+          dayName: d.dayName,
+          meals: d.meals.map(m => ({
             type: m.type,
             time: m.time,
             instructions: m.instructions,
             foods: m.foods.filter(f => f.name.trim() !== '')
           }))
-        }]
+        }))
       };
 
       await createDietPlan(payload);
@@ -200,79 +283,122 @@ const DietPlanBuilder = () => {
           </div>
         </div>
 
-        {/* Right: Meals Builder (Day 1 Template) */}
-        <div className="col-span-2 space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-accent-400" /> Daily Meal Template (Day 1)
-            </h2>
-            <button onClick={handleAddMeal} className="btn-sm btn-ghost border border-brand-500/30 text-brand-400">
-              <Plus className="w-3 h-3" /> Add Meal
-            </button>
+        {/* Right: Meals Builder (Multi-day Plan) */}
+        <div className="col-span-2 space-y-6">
+          {/* Day selection tabs */}
+          <div>
+            <label className="label mb-3">Plan Days</label>
+            <div className="flex flex-wrap items-center gap-2">
+              {weeklyPlan.map((day, idx) => (
+                <div key={day.dayNumber} className="flex items-center bg-slate-850/60 border border-surface-border rounded-xl p-0.5 pr-2 gap-1 group">
+                  <button
+                    type="button"
+                    onClick={() => setActiveDayIdx(idx)}
+                    className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                      activeDayIdx === idx
+                      ? 'bg-brand-500 text-white shadow-glow-brand'
+                      : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Day {day.dayNumber}
+                  </button>
+                  {weeklyPlan.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveDay(idx)}
+                      className="p-1 text-slate-500 hover:text-rose-500 transition-colors"
+                      title="Remove this Day"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {weeklyPlan.length < 7 && (
+                <button
+                  type="button"
+                  onClick={handleAddDay}
+                  className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 border border-brand-500/20 flex items-center gap-1.5 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Day
+                </button>
+              )}
+            </div>
           </div>
 
-          {meals.map((meal, index) => (
-            <div key={meal.id} className="card p-5 animate-fade-in border-l-4 border-l-brand-500">
-              <div className="flex gap-4 items-start mb-4">
-                <div className="flex-1 grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="label">Meal Type</label>
-                    <select className="input" value={meal.type} onChange={e => handleMealChange(meal.id, 'type', e.target.value)}>
-                      <option value="breakfast">Breakfast</option>
-                      <option value="mid_morning_snack">Mid-Morning Snack</option>
-                      <option value="lunch">Lunch</option>
-                      <option value="afternoon_snack">Afternoon Snack</option>
-                      <option value="dinner">Dinner</option>
-                      <option value="evening_snack">Evening Snack</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">Time</label>
-                    <input className="input" type="time" value={meal.time} onChange={e => handleMealChange(meal.id, 'time', e.target.value)} />
-                  </div>
-                  <div className="col-span-3">
-                    <label className="label">Preparation Instructions</label>
-                    <input className="input" placeholder="e.g. Boil eggs for 8 mins" value={meal.instructions} onChange={e => handleMealChange(meal.id, 'instructions', e.target.value)} />
-                  </div>
-                </div>
-                <button onClick={() => removeMeal(meal.id)} className="p-2 text-slate-500 hover:text-red-400 bg-surface rounded-xl mt-6">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-t border-surface-border pt-4">
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-accent-400" /> Meals for Day {weeklyPlan[activeDayIdx]?.dayNumber || 1}
+              </h2>
+              <button onClick={handleAddMeal} className="btn-sm btn-ghost border border-brand-500/30 text-brand-400">
+                <Plus className="w-3 h-3" /> Add Meal
+              </button>
+            </div>
 
-              {/* Foods list */}
-              <div className="space-y-2 bg-surface/50 p-4 rounded-xl border border-surface-border">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="label !mb-0">Foods</label>
-                  <button onClick={() => addFood(meal.id)} className="text-[10px] uppercase font-bold text-brand-400 hover:text-brand-300">
-                    + Add Item
+            {(weeklyPlan[activeDayIdx]?.meals || []).map((meal, index) => (
+              <div key={meal.id} className="card p-5 animate-fade-in border-l-4 border-l-brand-500">
+                <div className="flex gap-4 items-start mb-4">
+                  <div className="flex-1 grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="label">Meal Type</label>
+                      <select className="input" value={meal.type} onChange={e => handleMealChange(meal.id, 'type', e.target.value)}>
+                        <option value="breakfast">Breakfast</option>
+                        <option value="mid_morning_snack">Mid-Morning Snack</option>
+                        <option value="lunch">Lunch</option>
+                        <option value="afternoon_snack">Afternoon Snack</option>
+                        <option value="dinner">Dinner</option>
+                        <option value="evening_snack">Evening Snack</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label">Time</label>
+                      <input className="input" type="time" value={meal.time} onChange={e => handleMealChange(meal.id, 'time', e.target.value)} />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="label">Preparation Instructions</label>
+                      <input className="input" placeholder="e.g. Boil eggs for 8 mins" value={meal.instructions} onChange={e => handleMealChange(meal.id, 'instructions', e.target.value)} />
+                    </div>
+                  </div>
+                  <button onClick={() => removeMeal(meal.id)} className="p-2 text-slate-500 hover:text-red-400 bg-surface rounded-xl mt-6">
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-                {meal.foods.map((food, fIdx) => (
-                  <div key={fIdx} className="flex gap-3 items-center">
-                    <input className="input flex-1 py-1.5 text-xs" placeholder="Food name (e.g. Oatmeal)" value={food.name} onChange={e => handleFoodChange(meal.id, fIdx, 'name', e.target.value)} />
-                    <input className="input w-24 py-1.5 text-xs" type="number" placeholder="Qty" value={food.quantity} onChange={e => handleFoodChange(meal.id, fIdx, 'quantity', Number(e.target.value))} />
-                    <select className="input w-20 py-1.5 text-xs" value={food.unit} onChange={e => handleFoodChange(meal.id, fIdx, 'unit', e.target.value)}>
-                      <option value="g">g</option>
-                      <option value="ml">ml</option>
-                      <option value="tbsp">tbsp</option>
-                      <option value="cup">cup</option>
-                      <option value="piece">piece</option>
-                    </select>
-                    <button onClick={() => removeFood(meal.id, fIdx)} className="text-slate-500 hover:text-red-400 p-1">
-                      <X className="w-4 h-4" />
+
+                {/* Foods list */}
+                <div className="space-y-2 bg-surface/50 p-4 rounded-xl border border-surface-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="label !mb-0">Foods</label>
+                    <button onClick={() => addFood(meal.id)} className="text-[10px] uppercase font-bold text-brand-400 hover:text-brand-300">
+                      + Add Item
                     </button>
                   </div>
-                ))}
+                  {meal.foods.map((food, fIdx) => (
+                    <div key={fIdx} className="flex gap-3 items-center">
+                      <input className="input flex-1 py-1.5 text-xs" placeholder="Food name (e.g. Oatmeal)" value={food.name} onChange={e => handleFoodChange(meal.id, fIdx, 'name', e.target.value)} />
+                      <input className="input w-24 py-1.5 text-xs" type="number" placeholder="Qty" value={food.quantity} onChange={e => handleFoodChange(meal.id, fIdx, 'quantity', Number(e.target.value))} />
+                      <select className="input w-20 py-1.5 text-xs" value={food.unit} onChange={e => handleFoodChange(meal.id, fIdx, 'unit', e.target.value)}>
+                        <option value="g">g</option>
+                        <option value="ml">ml</option>
+                        <option value="tbsp">tbsp</option>
+                        <option value="cup">cup</option>
+                        <option value="piece">piece</option>
+                      </select>
+                      <button onClick={() => removeFood(meal.id, fIdx)} className="text-slate-500 hover:text-red-400 p-1">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-          {meals.length === 0 && (
-            <div className="text-center py-8 card border-dashed border-2">
-              <p className="text-sm text-slate-400">No meals added to this day.</p>
-              <button onClick={handleAddMeal} className="text-brand-400 text-xs font-semibold mt-2 hover:underline">Add Meal</button>
-            </div>
-          )}
+            ))}
+            {(weeklyPlan[activeDayIdx]?.meals || []).length === 0 && (
+              <div className="text-center py-8 card border-dashed border-2">
+                <p className="text-sm text-slate-400">No meals added to this day.</p>
+                <button onClick={handleAddMeal} className="text-brand-400 text-xs font-semibold mt-2 hover:underline">Add Meal</button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </DashboardLayout>

@@ -162,10 +162,14 @@ exports.getChatbotResponse = async (req, res) => {
   // Build context from patient's profile for personalized advice
   const user = await User.findById(req.user._id).lean();
   const userContext = {
+    firstName:        user.firstName,
+    lastName:         user.lastName,
+    gender:           user.gender,
     dietaryGoals:     user.dietaryGoals || {},
     allergies:        user.allergies    || [],
     medicalConditions:user.medicalConditions || [],
     currentMetrics:   user.currentMetrics || {},
+    focusAreas:       user.focusAreas || [],
   };
 
   let botResponse;

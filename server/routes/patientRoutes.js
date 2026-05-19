@@ -1,13 +1,14 @@
 const express = require('express');
-const router  = express.Router();
-const { protect }    = require('../middleware/authMiddleware');
+const router = express.Router();
+const { protect } = require('../middleware/authMiddleware');
 const { patientOnly } = require('../middleware/rbacMiddleware');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 const User = require('../models/User');
 
 // GET /api/patients/profile
-router.get('/profile', protect, patientOnly, (req, res) => {
-  return sendSuccess(res, 200, 'Profile fetched.', { user: req.user });
+router.get('/profile', protect, patientOnly, async (req, res) => {
+  const user = await User.findById(req.user._id).populate('assignedDoctor');
+  return sendSuccess(res, 200, 'Profile fetched.', { user });
 });
 
 const { uploadSingle } = require('../middleware/uploadMiddleware');
@@ -16,10 +17,10 @@ const cloudinary = require('../config/cloudinary');
 // PATCH /api/patients/profile
 router.patch('/profile', protect, patientOnly, uploadSingle(), async (req, res) => {
   const allowed = ['firstName', 'lastName', 'phone', 'avatar', 'dietaryGoals',
-                   'allergies', 'medicalConditions', 'dateOfBirth', 'gender', 'email'];
+    'allergies', 'medicalConditions', 'focusAreas', 'dateOfBirth', 'gender', 'email'];
   const updates = {};
   allowed.forEach((k) => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
-  
+
   if (req.body.email) {
     const existing = await User.findOne({ email: req.body.email, _id: { $ne: req.user._id } });
     if (existing) return sendError(res, 400, 'Email already in use.');
@@ -62,17 +63,65 @@ router.patch('/profile', protect, patientOnly, uploadSingle(), async (req, res) 
 // POST /api/patients/metrics  — log a new weight/BMI snapshot
 router.post('/metrics', protect, patientOnly, async (req, res) => {
   const { weight, height, targetWeight } = req.body;
-  if (!weight || !height) return sendError(res, 400, 'weight and height required.');
-  const bmi = +(weight / ((height / 100) ** 2)).toFixed(1);
-  
-  const snap = { weight, height, bmi, recordedAt: new Date() };
-  if (targetWeight) snap.targetWeight = targetWeight;
+  if (!weight) return sendError(res, 400, 'weight is required.');
+
+  const user = await User.findById(req.user._id);
+  const finalHeight = height || user.currentMetrics?.height;
+  const finalTargetWeight = targetWeight || user.currentMetrics?.targetWeight;
+
+  if (!finalHeight) return sendError(res, 400, 'Height is required for the first time.');
+
+  const bmi = +(weight / ((finalHeight / 100) ** 2)).toFixed(1);
+
+  const snap = {
+    weight,
+    height: finalHeight,
+    bmi,
+    recordedAt: new Date()
+  };
+  if (finalTargetWeight) snap.targetWeight = finalTargetWeight;
 
   await User.findByIdAndUpdate(req.user._id, {
     $push: { healthMetrics: snap },
-    $set:  { currentMetrics: snap },
+    $set: { currentMetrics: snap },
   });
   return sendSuccess(res, 201, 'Metrics logged.', { metrics: snap });
+});
+
+// POST /api/patients/cancel-subscription
+router.post('/cancel-subscription', protect, patientOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return sendError(res, 404, 'User not found.');
+
+    // Update user state
+    user.subscription = {
+      plan: 'free',
+      status: 'cancelled',
+      startDate: user.subscription?.startDate,
+      endDate: new Date() // Expire immediately
+    };
+    user.assignedDoctor = undefined; // Remove from doctor's list
+
+    await user.save();
+
+    // Also cancel all future bookings
+    const Booking = require('../models/Booking');
+    await Booking.updateMany(
+      {
+        patient: req.user._id,
+        type: 'consultation',
+        status: { $in: ['pending', 'confirmed'] },
+        date: { $gte: new Date().setHours(0, 0, 0, 0) } // Today onwards
+      },
+      { status: 'cancelled' }
+    );
+
+    return sendSuccess(res, 200, 'Subscription cancelled successfully.', { user });
+  } catch (err) {
+    console.error('Cancel subscription error:', err);
+    return sendError(res, 500, 'Failed to cancel subscription.');
+  }
 });
 
 module.exports = router;

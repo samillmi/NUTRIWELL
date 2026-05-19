@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, UtensilsCrossed, CalendarDays, DollarSign } from 'lucide-react';
+import { Search, ShoppingCart, User, UtensilsCrossed, CalendarDays, DollarSign, Star } from 'lucide-react';
 import DashboardLayout from '../../components/common/DashboardLayout';
 import { getPublicPlans } from '../../api/dietApi';
 import toast from 'react-hot-toast';
@@ -72,6 +72,14 @@ const PublicPlans = () => {
               <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mb-4 flex-1">
                 {plan.description || 'A comprehensive diet plan tailored for your needs.'}
               </p>
+
+              <div className="flex items-center gap-1 mb-4">
+                <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  {plan.rating || 5.0}
+                </span>
+                <span className="text-xs text-slate-500">({plan.totalReviews || 0})</span>
+              </div>
 
               <div className="grid grid-cols-2 gap-3 mb-6 bg-surface dark:bg-slate-900/50 p-3 rounded-xl border border-surface-border dark:border-white/5">
                 <div className="flex items-center gap-2">

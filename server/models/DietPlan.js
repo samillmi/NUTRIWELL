@@ -65,6 +65,7 @@ const DietPlanSchema = new mongoose.Schema(
       ref: 'User',
       required: function() { return !this.isPublic; }
     },
+    parentTemplate: { type: mongoose.Schema.Types.ObjectId, ref: 'DietPlan' },
 
     // ── Identity ──────────────────────────────────────────────────────────
     title:       { type: String, required: true, trim: true, maxlength: 120 },
@@ -99,6 +100,7 @@ const DietPlanSchema = new mongoose.Schema(
 
     // ── Patient feedback ──────────────────────────────────────────────────
     patientRating:  { type: Number, min: 1, max: 5 },
+    doctorRating:   { type: Number, min: 1, max: 5 },
     patientFeedback:{ type: String, maxlength: 1000 },
     patientAcknowledgedAt: { type: Date },
 

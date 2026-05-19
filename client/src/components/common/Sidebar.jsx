@@ -2,9 +2,9 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useRef } from 'react';
 import {
   LayoutDashboard, Users, Settings, LogOut, Stethoscope,
-  UtensilsCrossed, MessageSquare, Video, ScanLine, Bot,
+  UtensilsCrossed, MessageSquare, Video, ScanLine, Bot, ClipboardList,
   ChevronRight, Activity, Shield, Sun, Moon, CreditCard, ShoppingCart, Search, Sparkles, Home,
-  Camera, X
+  Camera, X, BookOpen
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import { useTheme } from '../../context/ThemeContext';
@@ -14,36 +14,42 @@ import api from '../../api/axiosInstance';
 
 const navConfig = {
   admin: [
-    { to: '/admin',          icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/admin/users',    icon: Users,            label: 'Users' },
-    { to: '/admin/finance',  icon: Activity,         label: 'Financials' },
-    { to: '/admin/payments', icon: CreditCard,       label: 'Payments' },
-    { to: '/admin/settings', icon: Settings,         label: 'Settings' },
+    { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/admin/users', icon: Users, label: 'Users' },
+    { to: '/admin/finance', icon: Activity, label: 'Financials' },
+    // { to: '/admin/payments', icon: CreditCard, label: 'Payments' },
+    { to: '/admin/plans', icon: ClipboardList, label: 'Plans' },
+    { to: '/admin/settings', icon: Settings, label: 'Settings' },
+    { to: '/admin/blogs', icon: BookOpen, label: 'Blogs' },
+    { to: '/admin/support', icon: MessageSquare, label: 'Support Msgs' },
   ],
   doctor: [
-    { to: '/doctor',          icon: LayoutDashboard,  label: 'Dashboard' },
-    { to: '/doctor/patients', icon: Users,             label: 'My Patients' },
-    { to: '/doctor/plans',    icon: UtensilsCrossed,   label: 'Diet Plans' },
-    { to: '/doctor/chat',     icon: MessageSquare,     label: 'Chat' },
-    { to: '/doctor/video',    icon: Video,             label: 'Consultations' },
-    { to: '/doctor/settings', icon: Settings,          label: 'Settings' },
+    { to: '/doctor', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/doctor/patients', icon: Users, label: 'My Patients' },
+    { to: '/doctor/plans', icon: UtensilsCrossed, label: 'Diet Plans' },
+    { to: '/doctor/chat', icon: MessageSquare, label: 'Chat' },
+    { to: '/doctor/blogs', icon: BookOpen, label: 'My Blogs' },
+    { to: '/doctor/contact-admin', icon: Shield, label: 'Contact Admin' },
+    { to: '/doctor/settings', icon: Settings, label: 'Settings' },
   ],
   patient: [
-    { to: '/patient',          icon: Home,              label: 'Dashboard' },
-    { to: '/patient/plans',    icon: UtensilsCrossed,   label: 'My Diet Plans' },
-    { to: '/patient/marketplace', icon: ShoppingCart,   label: 'Public Templates' },
-    { to: '/patient/doctors',  icon: Search,            label: 'Find Doctor' },
-    { to: '/patient/ai',       icon: Sparkles,          label: 'AI Assistant' },
-    { to: '/patient/chat',     icon: MessageSquare,     label: 'Chat' },
-    { to: '/patient/settings', icon: Settings,          label: 'Settings' },
+    { to: '/patient', icon: Home, label: 'Dashboard' },
+    { to: '/patient/plans', icon: UtensilsCrossed, label: 'My Diet Plans' },
+    { to: '/patient/marketplace', icon: ShoppingCart, label: 'Public Templates' },
+    { to: '/patient/doctors', icon: ClipboardList, label: 'Plans' },
+    { to: '/patient/ai', icon: Sparkles, label: 'AI Assistant' },
+    { to: '/patient/chat', icon: MessageSquare, label: 'Chat' },
+    { to: '/patient/blogs', icon: BookOpen, label: 'Blogs' },
+    { to: '/patient/contact-admin', icon: Shield, label: 'Contact Admin' },
+    { to: '/patient/settings', icon: Settings, label: 'Settings' },
   ],
 };
 
 const roleIcons = { admin: Shield, doctor: Stethoscope, patient: Activity };
 const roleLabels = { admin: 'Admin', doctor: 'Doctor', patient: 'Patient' };
 const roleColors = {
-  admin:   'text-red-400    bg-red-500/10    border-red-500/30',
-  doctor:  'text-brand-400  bg-brand-500/10  border-brand-500/30',
+  admin: 'text-red-400    bg-red-500/10    border-red-500/30',
+  doctor: 'text-brand-400  bg-brand-500/10  border-brand-500/30',
   patient: 'text-accent-400 bg-accent-500/10 border-accent-500/30',
 };
 
@@ -52,8 +58,16 @@ const Sidebar = ({ isOpen, onClose }) => {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
-  const items    = navConfig[user?.role] || [];
   const RoleIcon = roleIcons[user?.role] || Shield;
+  
+  let items = navConfig[user?.role] || [];
+  
+  // If doctor and not verified, restrict items
+  if (user?.role === 'doctor' && !user?.doctorProfile?.isVerified) {
+    items = items.filter(item => 
+      ['Dashboard', 'Contact Admin', 'Settings'].includes(item.label)
+    );
+  }
 
   const handleLogout = async () => {
     try { await logout(); } catch { /* ignore */ }
@@ -95,10 +109,10 @@ const Sidebar = ({ isOpen, onClose }) => {
     <aside className={`fixed inset-y-0 left-0 z-40 w-64 flex flex-col
                       bg-surface-card dark:bg-slate-900 border-r border-surface-border dark:border-white/10 transition-transform duration-300
                       ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-      
+
       {/* Close button for mobile */}
-      <button 
-        onClick={onClose} 
+      <button
+        onClick={onClose}
         className="lg:hidden absolute top-4 right-4 p-2 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-lg"
       >
         <X className="w-5 h-5" />
@@ -111,7 +125,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           <UtensilsCrossed className="w-5 h-5 text-white" />
         </div>
         <div>
-          <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">NutriTrack</p>
+          <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">NutriWell</p>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">AI Diet Platform</p>
         </div>
       </div>
@@ -133,7 +147,7 @@ const Sidebar = ({ isOpen, onClose }) => {
             </div>
           </div>
           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
-          
+
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
               {user?.firstName} {user?.lastName}

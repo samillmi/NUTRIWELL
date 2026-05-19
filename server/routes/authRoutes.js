@@ -169,7 +169,7 @@ router.post('/forgot-password', async (req, res) => {
     try {
       await sendEmail({
         email: user.email,
-        subject: 'NutriTrack - Password Reset Code',
+        subject: 'NutriWell - Password Reset Code',
         message: `Your password reset code is: ${resetCode}. It will expire in 10 minutes.`,
         html: `<h3>Password Reset Code</h3><p>Your password reset code is: <strong>${resetCode}</strong></p><p>It will expire in 10 minutes.</p>`,
       });

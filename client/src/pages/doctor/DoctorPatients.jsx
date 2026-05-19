@@ -1,14 +1,164 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, User, Activity, Mail, Phone, ExternalLink } from 'lucide-react';
+import { Search, User, Activity, Mail, Phone, ExternalLink, Star, X } from 'lucide-react';
 import DashboardLayout from '../../components/common/DashboardLayout';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getDoctorPatients } from '../../api/doctorApi';
 import toast from 'react-hot-toast';
+
+const PatientDetailsModal = ({ patient, onClose }) => {
+  if (!patient) return null;
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 bg-white dark:bg-slate-900 border border-surface-border dark:border-white/10 shadow-2xl animate-scale-in">
+        <div className="flex justify-between items-start mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-brand-gradient flex items-center justify-center text-white text-xl font-bold">
+              {patient.firstName[0]}
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                {patient.firstName} {patient.lastName}
+              </h2>
+              <p className="text-sm text-slate-500">{patient.email}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          {/* Metrics */}
+          <div className="grid grid-cols-3 gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+            <div className="text-center">
+              <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">Weight</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">
+                {patient.currentMetrics?.weight ? `${patient.currentMetrics.weight}kg` : '—'}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">Height</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">
+                {patient.currentMetrics?.height ? `${patient.currentMetrics.height}cm` : '—'}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">Target</p>
+              <p className="text-lg font-bold text-brand-500 dark:text-brand-400">
+                {patient.currentMetrics?.targetWeight ? `${patient.currentMetrics.targetWeight}kg` : '—'}
+              </p>
+            </div>
+          </div>
+
+          {/* Chart */}
+          {patient.healthMetrics?.length > 0 && (
+            <div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mb-2">Weight Progression</p>
+              <div className="h-[150px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={patient.healthMetrics.map(m => ({
+                    date: m.recordedAt ? new Date(m.recordedAt).toLocaleDateString() : 'N/A',
+                    weight: m.weight
+                  }))}>
+                    <defs>
+                      <linearGradient id={`wt-modal-${patient._id}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#64748b" opacity={0.2} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} />
+                    <YAxis tick={{ fontSize: 10, fill: '#64748b' }} domain={['dataMin - 1', 'dataMax + 1']} />
+                    <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8 }} />
+                    <Area type="monotone" dataKey="weight" stroke="#8b5cf6" strokeWidth={2.5}
+                      fill={`url(#wt-modal-${patient._id})`} dot={{ fill: '#8b5cf6', r: 4 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Goals */}
+          {patient.dietaryGoals && (
+            <div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mb-2">Dietary Goals</p>
+              <div className="grid grid-cols-4 gap-2 text-sm">
+                <div className="p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-center">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Calories</p>
+                  <p className="font-bold text-slate-900 dark:text-white">{patient.dietaryGoals.dailyCalories} kcal</p>
+                </div>
+                <div className="p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-center">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Protein</p>
+                  <p className="font-bold text-slate-900 dark:text-white">{patient.dietaryGoals.proteinGrams}g</p>
+                </div>
+                <div className="p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-center">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Carbs</p>
+                  <p className="font-bold text-slate-900 dark:text-white">{patient.dietaryGoals.carbohydrateGrams}g</p>
+                </div>
+                <div className="p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-center">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Fat</p>
+                  <p className="font-bold text-slate-900 dark:text-white">{patient.dietaryGoals.fatGrams}g</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Focus Areas */}
+          {patient.focusAreas && patient.focusAreas.length > 0 && (
+            <div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold mb-2">Focus Areas</p>
+              <div className="flex flex-wrap gap-1">
+                {patient.focusAreas.map((area, i) => (
+                  <span key={i} className="text-xs px-3 py-1 rounded-full bg-brand-500/10 text-brand-500 dark:text-brand-400 border border-brand-500/20">
+                    {area}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Allergies & Conditions */}
+          {(patient.allergies?.length > 0 || patient.medicalConditions?.length > 0) && (
+            <div className="grid grid-cols-2 gap-4">
+              {patient.allergies?.length > 0 && (
+                <div>
+                  <p className="text-xs text-red-500 uppercase font-semibold mb-2">Allergies</p>
+                  <div className="flex flex-wrap gap-1">
+                    {patient.allergies.map((al, i) => (
+                      <span key={i} className="text-xs px-3 py-1 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">
+                        {al}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {patient.medicalConditions?.length > 0 && (
+                <div>
+                  <p className="text-xs text-amber-500 uppercase font-semibold mb-2">Medical Conditions</p>
+                  <div className="flex flex-wrap gap-1">
+                    {patient.medicalConditions.map((mc, i) => (
+                      <span key={i} className="text-xs px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                        {mc}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const DoctorPatients = () => {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [selectedPatientForModal, setSelectedPatientForModal] = useState(null);
 
   useEffect(() => {
     getDoctorPatients()
@@ -90,27 +240,24 @@ const DoctorPatients = () => {
                   </div>
                 )}
                 
-                {/* Metrics & Goal */}
-                <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-white/5">
-                  <div className="text-center">
-                    <p className="text-[10px] text-slate-500 uppercase font-semibold">Weight</p>
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">
-                      {patient.currentMetrics?.weight ? `${patient.currentMetrics.weight}kg` : '—'}
-                    </p>
+                {patient.review && (
+                  <div className="mt-4 pt-4 border-t border-slate-200 dark:border-white/10">
+                    <p className="text-[10px] text-slate-500 uppercase font-semibold mb-1">Feedback</p>
+                    <div className="flex items-center gap-1 mb-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star key={star} className={`w-3.5 h-3.5 ${patient.review.rating >= star ? 'text-yellow-400 fill-yellow-400' : 'text-slate-600'}`} />
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 italic">"{patient.review.feedback}"</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-[10px] text-slate-500 uppercase font-semibold">Height</p>
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">
-                      {patient.currentMetrics?.height ? `${patient.currentMetrics.height}cm` : '—'}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[10px] text-slate-500 uppercase font-semibold">Target</p>
-                    <p className="text-sm font-bold text-brand-400">
-                      {patient.currentMetrics?.targetWeight ? `${patient.currentMetrics.targetWeight}kg` : '—'}
-                    </p>
-                  </div>
-                </div>
+                )}
+
+                <button 
+                  onClick={() => setSelectedPatientForModal(patient)} 
+                  className="btn-secondary text-xs w-full mt-4 mb-4"
+                >
+                  View Health Profile
+                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -125,6 +272,11 @@ const DoctorPatients = () => {
           ))}
         </div>
       )}
+
+      <PatientDetailsModal 
+        patient={selectedPatientForModal} 
+        onClose={() => setSelectedPatientForModal(null)} 
+      />
     </DashboardLayout>
   );
 };
